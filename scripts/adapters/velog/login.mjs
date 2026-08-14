@@ -1,7 +1,7 @@
 /*
  * Velog 자동 로그인 (원본: ~/.claude/scripts/velog-login.mjs).
  * 저장된 네이버 쿠키로 Velog 이메일 로그인 링크를 메일함에서 찾아 클릭한다.
- * 변경점: 쿠키 경로 → ~/.blog-loop/secrets, 이메일 → config.velog.email,
+ * 변경점: 쿠키 경로 → ~/.auto-velog/secrets, 이메일 → config.velog.email,
  *         headless → config.browser.headless (백그라운드 파이프라인용).
  * 성공 시 stdout STATUS:LOGGED_IN, 실패 시 exit 1.
  */
@@ -23,7 +23,7 @@ async function main() {
   const config = loadConfig();
   const email = config.velog.email;
   if (!email) {
-    console.error("config.velog.email 이 비어 있습니다. ~/.blog-loop/config.json 을 설정하세요.");
+    console.error("config.velog.email 이 비어 있습니다. ~/.auto-velog/config.json 을 설정하세요.");
     process.exit(1);
   }
   if (!existsSync(NAVER_COOKIE_PATH)) {

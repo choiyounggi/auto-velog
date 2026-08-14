@@ -1,5 +1,5 @@
 {
-  "description": "blog-loop hooks — SessionStart로 ★ BlogWorthy 발현 지침을 주입하고, Stop에서 트랜스크립트를 수확해 큐 적재 + detached headless draft 파이프라인을 spawn한다.",
+  "description": "auto-velog hooks — SessionStart로 ★ BlogWorthy 발현 지침을 주입하고, Stop에서 트랜스크립트를 수확해 큐 적재 + detached headless draft 파이프라인을 spawn한다.",
   "hooks": {
     "SessionStart": [
       {

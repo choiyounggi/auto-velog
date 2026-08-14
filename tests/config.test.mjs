@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULTS, loadConfig } from "../scripts/lib/config.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "blog-loop-test-"));
+const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-test-"));
 
 test("파일이 없으면 DEFAULTS 사본을 반환한다", () => {
   const cfg = loadConfig(join(tmp(), "nope.json"));

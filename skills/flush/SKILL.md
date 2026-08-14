@@ -3,14 +3,14 @@ name: flush
 description: 밀린 블로그 글감·초안 일괄 처리. 큐의 pending 글감과 drafts의 pending/deferred/blocked 초안을 목록으로 보여주고 사용자와 함께 처리. 여러 세션의 글감을 한 편으로 묶는 옵션 포함. "블로그 밀린 거 처리", "blog flush", "글감 정리" 등에 트리거.
 ---
 
-# blog-loop flush (수동 일괄 처리)
+# auto-velog flush (수동 일괄 처리)
 
 대화형 스킬이다 — headless 자동 실행용이 아니다.
 
 ## 1. 현황 파악
 
-- `~/.blog-loop/queue/*.jsonl`의 pending row (`.processed.jsonl` 제외)
-- `~/.blog-loop/drafts/*.md`의 frontmatter `status`가 pending / deferred / blocked / failed인 것
+- `~/.auto-velog/queue/*.jsonl`의 pending row (`.processed.jsonl` 제외)
+- `~/.auto-velog/drafts/*.md`의 frontmatter `status`가 pending / deferred / blocked / failed인 것
 
 표로 보여준다: 글감 topic·angle·수확일 | 초안 제목·score·status.
 
@@ -26,4 +26,4 @@ description: 밀린 블로그 글감·초안 일괄 처리. 큐의 pending 글�
 
 ## 3. 마무리
 
-처리 결과 요약(발행 URL, 남은 항목)을 보고하고 `~/.blog-loop/log.jsonl`에 기록한다.
+처리 결과 요약(발행 URL, 남은 항목)을 보고하고 `~/.auto-velog/log.jsonl`에 기록한다.

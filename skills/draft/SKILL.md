@@ -3,15 +3,15 @@ name: draft
 description: 큐에 쌓인 ★ BlogWorthy 글감을 심사하고, 세션 트랜스크립트를 분석해 사람이 쓴 듯한 블로그 초안을 집필한 뒤 시크릿 스캔을 거쳐 (설정에 따라) 발행까지 진행. Stop 훅이 headless로 자동 실행하며, "블로그 초안", "blog draft" 등으로 수동 실행도 가능.
 ---
 
-# blog-loop 초안 파이프라인
+# auto-velog 초안 파이프라인
 
-플러그인 루트를 `$PLUGIN`, 데이터 디렉토리를 `~/.blog-loop`이라 한다.
+플러그인 루트를 `$PLUGIN`, 데이터 디렉토리를 `~/.auto-velog`이라 한다.
 
 ## 0. 사전 체크
 
-- `~/.blog-loop/PAUSE` 파일이 존재하면 아무것도 하지 않고 종료한다.
-- `~/.blog-loop/config.json`을 읽는다 (없으면 "먼저 /blog-loop:setup 실행 필요" 로그 후 종료).
-- `~/.blog-loop/queue/*.jsonl`에서 `"status":"pending"` row를 모은다 (`.processed.jsonl` 제외).
+- `~/.auto-velog/PAUSE` 파일이 존재하면 아무것도 하지 않고 종료한다.
+- `~/.auto-velog/config.json`을 읽는다 (없으면 "먼저 /auto-velog:setup 실행 필요" 로그 후 종료).
+- `~/.auto-velog/queue/*.jsonl`에서 `"status":"pending"` row를 모은다 (`.processed.jsonl` 제외).
   없으면 종료.
 
 ## 1. 글감 심사 (worthiness gate)
@@ -23,7 +23,7 @@ description: 큐에 쌓인 ★ BlogWorthy 글감을 심사하고, 세션 트랜�
 | 완결성 | 4 | row의 story와 트랜스크립트에 문제 → 과정 → 해결이 모두 있는가. 하나라도 없으면 0점 |
 | 독자 가치 | 3 | 같은 문제를 검색할 사람이 있을 주제인가. 지나치게 개인적·자명한 내용은 감점 |
 | 소스 예시 | 2 | 트랜스크립트에서 실제 실행된 코드·명령어·에러 메시지를 인용할 수 있는가 |
-| 비중복 | 1 | `~/.blog-loop/publish-log.jsonl`의 기존 발행 제목과 주제가 겹치지 않는가 |
+| 비중복 | 1 | `~/.auto-velog/publish-log.jsonl`의 기존 발행 제목과 주제가 겹치지 않는가 |
 
 점수와 근거 한 줄을 draft frontmatter에 기록한다. **완결성 0점이면 즉시 skip**
 (status: skipped로 처리하고 다음 row로).
@@ -57,7 +57,7 @@ few-shot으로 쓴다. 없으면 아래 기본 프로필을 따른다:
 
 **분량:** `config.style.targetLength` (기본 3000자) 내외, 소제목 4~6개.
 
-`~/.blog-loop/drafts/YYYY-MM-DD-<slug>.md`로 저장 (slug는 topic의 영문/한글 케밥):
+`~/.auto-velog/drafts/YYYY-MM-DD-<slug>.md`로 저장 (slug는 topic의 영문/한글 케밥):
 
 ```markdown
 ---
@@ -73,7 +73,7 @@ status: pending
 ## 4. 시크릿/PII 스캔 (블로킹 — 발행 전 필수)
 
 ```bash
-node "$PLUGIN/scripts/secret-scan.mjs" ~/.blog-loop/drafts/<파일>.md
+node "$PLUGIN/scripts/secret-scan.mjs" ~/.auto-velog/drafts/<파일>.md
 ```
 
 - exit 1 (탐지): findings의 각 항목을 보고, 글이 성립하는 선에서 레드액션
@@ -98,9 +98,9 @@ approve 모드면 `status: pending` 유지.
 ## 6. 마무리 (row마다)
 
 - 처리한 row를 원본 큐 파일에서 제거하고, status를 갱신해
-  `~/.blog-loop/queue/.processed.jsonl`에 append한다 (dedup 시드로 쓰이므로 필수).
-- `~/.blog-loop/log.jsonl`에 `{ts, event, session, draft, score, status, url?}` append.
+  `~/.auto-velog/queue/.processed.jsonl`에 append한다 (dedup 시드로 쓰이므로 필수).
+- `~/.auto-velog/log.jsonl`에 `{ts, event, session, draft, score, status, url?}` append.
 - macOS 알림 (best-effort, 실패 무시):
   ```bash
-  osascript -e 'display notification "<제목> — <status>" with title "blog-loop"' 2>/dev/null || true
+  osascript -e 'display notification "<제목> — <status>" with title "auto-velog"' 2>/dev/null || true
   ```

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /*
- * blog-loop 시크릿/PII 1차 스캐너 (정규식 패스).
+ * auto-velog 시크릿/PII 1차 스캐너 (정규식 패스).
  * 발행 전 블로킹 게이트 — draft 스킬이 CLI로 호출한다.
  * 2차 문맥 판단(회사 내부 정보 등)은 draft 스킬의 LLM 패스가 담당한다.
  *
  * CLI: node secret-scan.mjs <file>
  *   exit 0 = clean, 1 = findings(stdout에 JSON), 2 = error
- *   ~/.blog-loop/config.json 의 secretScan.denyPatterns 를 자동 로드.
+ *   ~/.auto-velog/config.json 의 secretScan.denyPatterns 를 자동 로드.
  */
 import fs from "node:fs";
 import path from "node:path";

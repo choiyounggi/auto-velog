@@ -1,4 +1,4 @@
-# blog-loop — 세션 기반 블로그 자동 발행 파이프라인 설계
+# auto-velog — 세션 기반 블로그 자동 발행 파이프라인 설계
 
 - 날짜: 2026-08-14
 - 상태: 승인됨 (완전 자동 발행 / 세션 종료 시 자동 초안 / Claude Code 플러그인)
@@ -21,16 +21,16 @@ Velog 글로 다듬어 자동 발행한다. 범용 레포로 배포해 다른 �
   SessionStart 훅 → ★ BlogWorthy 블록 발현 지침 주입 (세션당 0~1개)
        ↓
   Stop 훅(harvest-blog.sh + harvest.js)
-       → 트랜스크립트에서 블록 수확 → ~/.blog-loop/queue/<session>.jsonl
+       → 트랜스크립트에서 블록 수확 → ~/.auto-velog/queue/<session>.jsonl
        → 새 항목이 있으면 detached headless claude 로 draft 파이프라인 spawn
        ↓
-[blog-loop:draft (headless)]
+[auto-velog:draft (headless)]
   ① 글감 게이트: 10점 스코어링, minScore 미달 시 skip (draft 보관만)
   ② 세션 분석: 문제 → 시도(실패 포함) → 해결 → 배운 점 + 실제 코드/명령어 추출
-  ③ 스타일 프로필로 집필 → ~/.blog-loop/drafts/YYYY-MM-DD-slug.md
+  ③ 스타일 프로필로 집필 → ~/.auto-velog/drafts/YYYY-MM-DD-slug.md
   ④ 시크릿/PII 스캔 (블로킹): 통과 못 하면 발행 중단 + 알림
        ↓ (mode=auto && score>=minScore && 일일 상한 미달)
-[blog-loop:publish]
+[auto-velog:publish]
   로그인 체크 → 자동 로그인 → GraphQL WritePost 발행 → 로그 + 알림
 ```
 
@@ -57,28 +57,28 @@ why-worth: <독자가 얻어갈 것>
 ### hooks/
 | 파일 | 이벤트 | 역할 |
 |------|--------|------|
-| `blog-instruction.sh` | SessionStart(startup) | BlogWorthy 발현 지침 주입. 재귀 방지: `BLOG_LOOP_DRAFTING=1` 또는 cwd가 `~/.blog-loop` 이면 skip |
+| `blog-instruction.sh` | SessionStart(startup) | BlogWorthy 발현 지침 주입. 재귀 방지: `AUTO_VELOG_DRAFTING=1` 또는 cwd가 `~/.auto-velog` 이면 skip |
 | `harvest-blog.sh` | Stop | stdin 페이로드를 `harvest.js`에 전달(백그라운드), 수확 결과가 있으면 draft 파이프라인 spawn |
 | `harvest.js` | — | 트랜스크립트 파싱 → 블록 추출 → dedup → queue 적재. 세션당 백스톱 캡 3 |
 
 draft spawn 가드 (auto-flush.sh 패턴):
-- 킬 스위치: `BLOG_LOOP_AUTODRAFT=0` 환경변수 / `~/.blog-loop/PAUSE` 파일
-- 재귀 방지: `BLOG_LOOP_DRAFTING=1`, `stop_hook_active` skip
+- 킬 스위치: `AUTO_VELOG_AUTODRAFT=0` 환경변수 / `~/.auto-velog/PAUSE` 파일
+- 재귀 방지: `AUTO_VELOG_DRAFTING=1`, `stop_hook_active` skip
 - single-flight lock (TTL 30분) + rate limit (기본 30분 1회)
 - fail-safe: `claude`/`node` 없으면 조용히 no-op
 
 ### skills/
 | 스킬 | 역할 |
 |------|------|
-| `blog-loop:setup` | `~/.blog-loop/` 생성, config.example → config 복사 안내, 네이버 쿠키 저장, 비공개 테스트 발행 |
-| `blog-loop:draft` | 큐 소비 → 게이트 → 세션 분석 → 집필 → 스캔 → (auto면) publish까지. headless 실행이 기본 |
-| `blog-loop:publish` | PAUSE/일일 상한 체크 → 로그인 체크/갱신 → 발행 → publish-log 기록 + 알림 |
-| `blog-loop:flush` | 수동: 밀린 큐·미발행 draft 일괄 처리, 여러 세션 글감 묶어 한 편 구성 옵션 |
+| `auto-velog:setup` | `~/.auto-velog/` 생성, config.example → config 복사 안내, 네이버 쿠키 저장, 비공개 테스트 발행 |
+| `auto-velog:draft` | 큐 소비 → 게이트 → 세션 분석 → 집필 → 스캔 → (auto면) publish까지. headless 실행이 기본 |
+| `auto-velog:publish` | PAUSE/일일 상한 체크 → 로그인 체크/갱신 → 발행 → publish-log 기록 + 알림 |
+| `auto-velog:flush` | 수동: 밀린 큐·미발행 draft 일괄 처리, 여러 세션 글감 묶어 한 편 구성 옵션 |
 
 ### scripts/
 ```
 scripts/
-├── lib/config.mjs            # ~/.blog-loop/config.json 로드 + 기본값 병합
+├── lib/config.mjs            # ~/.auto-velog/config.json 로드 + 기본값 병합
 ├── adapters/velog/
 │   ├── check-login.mjs       # STATUS:LOGGED_IN|NOT_LOGGED_IN|NAVER_EXPIRED
 │   ├── login.mjs             # 네이버 쿠키 → 메일 인증 링크 → velog 쿠키 갱신
@@ -90,7 +90,7 @@ scripts/
 - 어댑터 인터페이스: `check-login / login / publish` 3개 스크립트를 갖춘 디렉토리.
   `config.platform` 으로 선택. velog가 1호, Tistory/dev.to는 동일 인터페이스로 추가.
 - 기존 `~/.claude/scripts/*.mjs` 에서 이관하며: 하드코딩 이메일 제거(config),
-  쿠키 경로를 `~/.blog-loop/secrets/` 로, headless 기본 true (save-naver-cookies 제외),
+  쿠키 경로를 `~/.auto-velog/secrets/` 로, headless 기본 true (save-naver-cookies 제외),
   `is_private` 파라미터 추가 (테스트 발행용).
 
 ### 시크릿/PII 스캔 (블로킹, 발행 전 필수)
@@ -125,7 +125,7 @@ config의 `secretScan.denyPatterns` (사용자 커스텀 — 서버 호스트명
 ## 설정과 데이터
 
 ```
-~/.blog-loop/
+~/.auto-velog/
 ├── config.json          # config.example.json 복사 후 수정
 ├── secrets/             # naver-cookies.json, velog-cookies.json, velog-localstorage.json
 ├── queue/               # <session>.jsonl (pending) + .processed.jsonl

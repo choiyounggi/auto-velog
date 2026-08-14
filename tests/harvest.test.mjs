@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractBlocks, harvest } from "../scripts/harvest.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "blog-loop-harvest-"));
+const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-harvest-"));
 
 function block({ topic = "pf 방화벽 재부팅 함정", story = "pf 규칙이 재부팅 후 사라져서 삽질하다 launchd로 해결했다", extra = "" } = {}) {
   return [

@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const DATA_DIR = join(homedir(), ".blog-loop");
+export const DATA_DIR = join(homedir(), ".auto-velog");
 export const QUEUE_DIR = join(DATA_DIR, "queue");
 export const DRAFTS_DIR = join(DATA_DIR, "drafts");
 export const SECRETS_DIR = join(DATA_DIR, "secrets");

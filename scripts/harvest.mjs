@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /*
- * blog-loop harvester (dev-loop harvest.js 패턴 이식).
+ * auto-velog harvester (dev-loop harvest.js 패턴 이식).
  *
  * Stop 훅 페이로드를 stdin으로 받아 세션 트랜스크립트에서 ★ BlogWorthy 블록을
- * 추출하고, dedup 후 ~/.blog-loop/queue/<session>.jsonl 에 적재한다.
- * 집필·발행은 하지 않는다 — 그것은 blog-loop:draft 스킬의 몫.
+ * 추출하고, dedup 후 ~/.auto-velog/queue/<session>.jsonl 에 적재한다.
+ * 집필·발행은 하지 않는다 — 그것은 auto-velog:draft 스킬의 몫.
  * stdout의 ADDED:<n> 은 harvest-blog.sh 가 draft spawn 여부 판단에 쓴다.
  */
 import fs from "node:fs";

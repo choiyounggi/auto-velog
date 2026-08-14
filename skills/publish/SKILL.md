@@ -3,20 +3,20 @@ name: publish
 description: 심사·스캔을 통과한 draft를 Velog에 발행. 로그인 체크→자동 로그인→발행→로그·알림까지. "블로그 발행해줘", "blog publish", "draft 발행" 등에 트리거. draft 스킬이 auto 모드에서 내부적으로도 사용.
 ---
 
-# blog-loop 발행
+# auto-velog 발행
 
 플러그인 루트를 `$PLUGIN`이라 한다. 인자로 draft 파일 경로를 받거나, 없으면
-`~/.blog-loop/drafts/`에서 `status: deferred` → `pending` 순으로 오래된 것부터 고른다.
+`~/.auto-velog/drafts/`에서 `status: deferred` → `pending` 순으로 오래된 것부터 고른다.
 
 ## 0. 사전 체크
 
-- `~/.blog-loop/PAUSE` 존재 시 중단.
+- `~/.auto-velog/PAUSE` 존재 시 중단.
 - **시크릿 스캔 재확인** (발행 직전 최종 방어선 — draft 스킬이 이미 돌렸어도 다시):
   ```bash
   node "$PLUGIN/scripts/secret-scan.mjs" <draft.md>
   ```
   exit 1이면 발행 중단, `status: blocked` 처리 후 사용자에게 보고.
-- 일일 상한: `~/.blog-loop/publish-log.jsonl`에서 오늘(로컬 날짜) 발행 수가
+- 일일 상한: `~/.auto-velog/publish-log.jsonl`에서 오늘(로컬 날짜) 발행 수가
   `config.publish.dailyCap` 이상이면 `status: deferred`로 두고 중단.
   (수동 실행에서 사용자가 명시적으로 "지금 발행해"라고 하면 상한을 무시할 수 있다 — 그 사실을 알린다.)
 
@@ -46,6 +46,6 @@ node "$PLUGIN/scripts/adapters/velog/publish.mjs" <draft.md>
 
 ## 3. 결과 보고
 
-- `~/.blog-loop/log.jsonl`에 이벤트 append.
+- `~/.auto-velog/log.jsonl`에 이벤트 append.
 - macOS 알림 (best-effort): 성공 시 제목+URL, 실패 시 사유.
 - 대화형 세션이면 사용자에게 URL 또는 실패 사유를 보고한다.

@@ -1,5 +1,5 @@
 {
-  "name": "blog-loop",
+  "name": "auto-velog",
   "version": "0.1.0",
   "private": true,
   "description": "Claude Code plugin: harvest blog-worthy moments from sessions and auto-publish styled posts to Velog",

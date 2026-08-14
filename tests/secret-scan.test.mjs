@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { scanText } from "../scripts/secret-scan.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "blog-loop-scan-"));
+const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-scan-"));
 const CLI = new URL("../scripts/secret-scan.mjs", import.meta.url).pathname;
 
 function runCli(args) {
