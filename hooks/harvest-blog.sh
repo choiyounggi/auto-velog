@@ -74,11 +74,21 @@ MAX_MIN="${AUTO_VELOG_DRAFT_MAX_MIN:-120}"
     < /dev/null > "$DIR/autodraft.log" 2>&1 &
   CPID=$!
   ELAPSED=0
+  KILLED=""
+  # 락 해제는 프로세스 사망이 kill -0으로 확인된 뒤에만 한다 — TERM을 무시하고
+  # 살아남은 프로세스가 있는 채로 락을 풀면 동시 spawn 금지 보장이 깨진다.
   while kill -0 "$CPID" 2>/dev/null; do
     if [ "$ELAPSED" -ge "$MAX_MIN" ]; then
-      kill "$CPID" 2>/dev/null
-      echo "[watchdog] draft run exceeded ${MAX_MIN}min — killed" >> "$DIR/autodraft.log"
-      break
+      if [ -z "$KILLED" ]; then
+        kill "$CPID" 2>/dev/null; KILLED="term"
+        echo "[watchdog] draft run exceeded ${MAX_MIN}min — SIGTERM" >> "$DIR/autodraft.log"
+      else
+        kill -9 "$CPID" 2>/dev/null
+        echo "[watchdog] still alive after SIGTERM — SIGKILL" >> "$DIR/autodraft.log"
+      fi
+      touch "$LOCK" 2>/dev/null
+      sleep 10
+      continue
     fi
     touch "$LOCK" 2>/dev/null
     sleep 60

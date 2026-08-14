@@ -9,24 +9,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
-import { tmpFactory } from "./helpers.mjs";
+import { tmpFactory, runNodeCli } from "./helpers.mjs";
 
 const tmp = tmpFactory("auto-velog-gates-");
 const CLI = new URL("../scripts/adapters/velog/publish.mjs", import.meta.url).pathname;
 
-function runPublish(draftPath, home, extraArgs = []) {
-  try {
-    const stdout = execFileSync("node", [CLI, draftPath, ...extraArgs], {
-      encoding: "utf-8",
-      env: { ...process.env, HOME: home },
-    });
-    return { code: 0, stdout };
-  } catch (e) {
-    return { code: e.status, stdout: (e.stdout || "") + (e.stderr || "") };
-  }
-}
+const runPublish = (draftPath, home, extraArgs = []) =>
+  runNodeCli(CLI, [draftPath, ...extraArgs], { env: { ...process.env, HOME: home } });
 
 function draft(home, name, body, title = name) {
   const p = join(home, `${name}.md`);

@@ -2,21 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { scanText } from "../scripts/secret-scan.mjs";
-import { tmpFactory } from "./helpers.mjs";
+import { tmpFactory, runNodeCli } from "./helpers.mjs";
 
 const tmp = tmpFactory("auto-velog-scan-");
 const CLI = new URL("../scripts/secret-scan.mjs", import.meta.url).pathname;
 
-function runCli(args) {
-  try {
-    const stdout = execFileSync("node", [CLI, ...args], { encoding: "utf-8" });
-    return { code: 0, stdout };
-  } catch (e) {
-    return { code: e.status, stdout: e.stdout || "" };
-  }
-}
+const runCli = (args) => runNodeCli(CLI, args);
 
 test("클린 텍스트는 빈 배열을 반환한다", () => {
   assert.deepEqual(scanText("pf 규칙을 launchd plist로 영속화했다. pfctl -f /etc/pf.conf"), []);

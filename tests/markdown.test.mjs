@@ -47,10 +47,12 @@ test("frontmatter tags의 브래킷 리스트 형식도 파싱한다", () => {
   assert.deepEqual(tags, ["a", "b", "c"]);
 });
 
-test("CRLF frontmatter도 파싱한다", () => {
-  const { title, tags } = parseMarkdown("---\r\ntitle: 윈도우 줄바꿈\r\ntags: a, b\r\n---\r\n본문");
+test("CRLF frontmatter도 파싱하고 본문에 \\r을 남기지 않는다", () => {
+  const { title, tags, body } = parseMarkdown("---\r\ntitle: 윈도우 줄바꿈\r\ntags: a, b\r\n---\r\n첫 줄\r\n둘째 줄");
   assert.equal(title, "윈도우 줄바꿈");
   assert.deepEqual(tags, ["a", "b"]);
+  assert.equal(body, "첫 줄\n둘째 줄");
+  assert.ok(!body.includes("\r"));
 });
 
 test("본문 중간의 ## 소제목은 제목으로 오인하지 않는다", () => {

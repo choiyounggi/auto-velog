@@ -13,15 +13,16 @@ function parseTags(raw) {
 }
 
 export function parseMarkdown(content, defaultTags = []) {
+  content = content.replace(/\r\n/g, "\n"); // CRLF 정규화 — 본문까지 일괄 적용
   let title = "";
   let tags = [];
   const meta = {};
   let body = content;
 
-  // 1) YAML frontmatter 우선 (CRLF 허용)
-  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  // 1) YAML frontmatter 우선
+  const fm = content.match(/^---\n([\s\S]*?)\n---\n?/);
   if (fm) {
-    for (const line of fm[1].split(/\r?\n/)) {
+    for (const line of fm[1].split("\n")) {
       const m = line.match(/^(\w[\w-]*)\s*:\s*(.*)$/);
       if (!m) continue;
       const [, key, val] = m;

@@ -17,7 +17,6 @@
  * draft.md 는 YAML frontmatter(title/tags/session/score) 우선, 없으면
  * 첫 H1을 제목으로, `**태그**:` 줄을 태그로 파싱한다.
  */
-import { chromium } from "playwright";
 import { readFileSync, existsSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { SECRETS_DIR, PUBLISH_LOG, DATA_DIR } from "../../lib/paths.mjs";
@@ -97,6 +96,9 @@ async function main() {
     ? JSON.parse(readFileSync(VELOG_LS_PATH, "utf-8"))
     : null;
 
+  // 게이트 통과 후에만 필요하므로 lazy import — 게이트 경로(차단/중복/로그인)는
+  // 브라우저 모듈 로드 비용 없이 즉시 종료된다
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: config.browser.headless });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },

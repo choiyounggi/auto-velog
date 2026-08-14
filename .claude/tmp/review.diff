@@ -1,0 +1,369 @@
+diff --git a/README.md b/README.md
+index 11301b5..48fccf9 100644
+--- a/README.md
++++ b/README.md
+@@ -74,8 +74,10 @@ setup 스킬이 데이터 디렉토리 생성, config 작성, Velog 로그인(
+ ## 안전장치
+ 
+ - **시크릿/PII 스캔 (블로킹)**: 세션 트랜스크립트가 소재이므로 API 키·토큰·JWT·
+-  사설 IP·이메일·`password=` 대입문 + 커스텀 denyPatterns를 발행 전 2중
+-  (draft 시 + 발행 직전) 스캔. 탐지 시 레드액션 또는 발행 차단
++  사설 IP·이메일·URL 내장 자격증명·`password=` 대입문 + 커스텀 denyPatterns를
++  발행 전 2중 (draft 시 + 발행 직전) 스캔. 탐지 시 레드액션 또는 발행 차단.
++  *알려진 한계*: 정규식 패스는 줄 단위라 여러 줄로 쪼개진 시크릿은 못 잡는다 —
++  draft 스킬의 LLM 2차 패스가 이 간극을 커버한다
+ - **글감 심사**: 문제→과정→해결 완결성이 없으면 발행하지 않음
+ - **일일 상한**: 기본 1건/일, 초과분은 다음 날로 이월
+ - **일시 정지**: `touch ~/.auto-velog/PAUSE` (재개는 `rm`)
+diff --git a/hooks/harvest-blog.sh b/hooks/harvest-blog.sh
+index 0db5de4..143facc 100755
+--- a/hooks/harvest-blog.sh
++++ b/hooks/harvest-blog.sh
+@@ -30,7 +30,10 @@ ADDED="$(printf '%s' "$INPUT" | node "$HARVEST_MJS" 2>/dev/null | sed -n 's/^ADD
+ [ -n "$ADDED" ] && [ "$ADDED" -gt 0 ] 2>/dev/null || exit 0
+ 
+ # --- draft spawn 가드 ------------------------------------------------------
+-[ "${AUTO_VELOG_AUTODRAFT:-1}" = "0" ] && exit 0
++# 킬 스위치: 0/off/false 모두 인식 (빈 값은 "설정 안 함"으로 취급)
++case "${AUTO_VELOG_AUTODRAFT:-1}" in
++  0|off|false) exit 0 ;;
++esac
+ [ -f "$DIR/PAUSE" ] && exit 0
+ command -v claude >/dev/null 2>&1 || exit 0
+ 
+@@ -59,14 +62,27 @@ PROMPT='Run the auto-velog:draft skill now. Process every pending row in ~/.auto
+ # 무인 세션이므로 bypassPermissions 대신 필요한 도구만 허용한다.
+ ALLOWED='Read Write Edit Glob Grep WebFetch Skill Bash(node:*) Bash(osascript:*) Bash(mkdir:*)'
+ 
++# stdin은 명시적으로 분리한다: BSD(macOS) nohup은 GNU와 달리 stdin을 건드리지
++# 않고, 훅의 fd 0은 Stop 페이로드 파이프라서 프롬프트 가능 CLI가 잡고 있으면
++# hang의 원인이 된다. -p 플래그는 정책이고 리다이렉트가 보증이다.
++# 런타임 상한(기본 120분): hang한 headless 세션이 heartbeat로 락을 영원히
++# 쥐는 것을 막는다 (macOS엔 GNU timeout이 없어 watchdog 루프로 구현).
++MAX_MIN="${AUTO_VELOG_DRAFT_MAX_MIN:-120}"
+ (
+   AUTO_VELOG_DRAFTING=1 nohup "$CLAUDE_BIN" -p "$PROMPT" \
+     --allowedTools "$ALLOWED" \
+-    > "$DIR/autodraft.log" 2>&1 &
++    < /dev/null > "$DIR/autodraft.log" 2>&1 &
+   CPID=$!
++  ELAPSED=0
+   while kill -0 "$CPID" 2>/dev/null; do
++    if [ "$ELAPSED" -ge "$MAX_MIN" ]; then
++      kill "$CPID" 2>/dev/null
++      echo "[watchdog] draft run exceeded ${MAX_MIN}min — killed" >> "$DIR/autodraft.log"
++      break
++    fi
+     touch "$LOCK" 2>/dev/null
+     sleep 60
++    ELAPSED=$((ELAPSED + 1))
+   done
+   rmdir "$LOCK" 2>/dev/null
+ ) &
+diff --git a/scripts/harvest.mjs b/scripts/harvest.mjs
+index ca5d77a..abb2a66 100644
+--- a/scripts/harvest.mjs
++++ b/scripts/harvest.mjs
+@@ -61,6 +61,7 @@ export function extractBlocks(assistantText) {
+   while ((m = re.exec(assistantText)) !== null) {
+     const body = m[1].trim();
+     if (body.length < 30) continue; // 글감이 되기엔 너무 얇음
++    if (body.length > 10_000) continue; // 폭주/악성 블록 백스톱 (지침은 한 문단 요약)
+     const fields = parseBlock(body);
+     if (!fields.topic || !fields.story) continue; // 필수 필드
+     // 지침 템플릿 에코 방지: 플레이스홀더 <...> 잔존 시 드롭
+diff --git a/scripts/lib/markdown.mjs b/scripts/lib/markdown.mjs
+index 3340aec..d858bce 100644
+--- a/scripts/lib/markdown.mjs
++++ b/scripts/lib/markdown.mjs
+@@ -18,10 +18,10 @@ export function parseMarkdown(content, defaultTags = []) {
+   const meta = {};
+   let body = content;
+ 
+-  // 1) YAML frontmatter 우선
+-  const fm = content.match(/^---\n([\s\S]*?)\n---\n?/);
++  // 1) YAML frontmatter 우선 (CRLF 허용)
++  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+   if (fm) {
+-    for (const line of fm[1].split("\n")) {
++    for (const line of fm[1].split(/\r?\n/)) {
+       const m = line.match(/^(\w[\w-]*)\s*:\s*(.*)$/);
+       if (!m) continue;
+       const [, key, val] = m;
+diff --git a/tests/config.test.mjs b/tests/config.test.mjs
+index 257d534..b5ed1bd 100644
+--- a/tests/config.test.mjs
++++ b/tests/config.test.mjs
+@@ -1,11 +1,11 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+-import { mkdtempSync, writeFileSync } from "node:fs";
+-import { tmpdir } from "node:os";
++import { writeFileSync } from "node:fs";
+ import { join } from "node:path";
+ import { DEFAULTS, loadConfig } from "../scripts/lib/config.mjs";
++import { tmpFactory } from "./helpers.mjs";
+ 
+-const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-test-"));
++const tmp = tmpFactory("auto-velog-config-");
+ 
+ test("파일이 없으면 DEFAULTS 사본을 반환한다", () => {
+   const cfg = loadConfig(join(tmp(), "nope.json"));
+@@ -25,6 +25,12 @@ test("부분 설정은 깊은 병합된다", () => {
+   assert.equal(cfg.browser.headless, true);
+ });
+ 
++test("빈 객체 설정 파일이면 DEFAULTS와 동일하다", () => {
++  const p = join(tmp(), "config.json");
++  writeFileSync(p, "{}");
++  assert.deepEqual(loadConfig(p), DEFAULTS);
++});
++
+ test("깨진 JSON이면 throw 한다", () => {
+   const dir = tmp();
+   const p = join(dir, "config.json");
+diff --git a/tests/harvest.test.mjs b/tests/harvest.test.mjs
+index 8e17b7a..3b4a23a 100644
+--- a/tests/harvest.test.mjs
++++ b/tests/harvest.test.mjs
+@@ -1,11 +1,13 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+-import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+-import { tmpdir } from "node:os";
++import { writeFileSync, readFileSync, existsSync } from "node:fs";
+ import { join } from "node:path";
+-import { extractBlocks, harvest } from "../scripts/harvest.mjs";
++import { execFileSync } from "node:child_process";
++import { harvest } from "../scripts/harvest.mjs";
++import { tmpFactory } from "./helpers.mjs";
+ 
+-const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-harvest-"));
++const tmp = tmpFactory("auto-velog-harvest-");
++const CLI = new URL("../scripts/harvest.mjs", import.meta.url).pathname;
+ 
+ function block({ topic = "pf 방화벽 재부팅 함정", story = "pf 규칙이 재부팅 후 사라져서 삽질하다 launchd로 해결했다", extra = "" } = {}) {
+   return [
+@@ -86,3 +88,34 @@ test("블록 4개면 캡 3까지만 적재한다", () => {
+   const added = run(transcriptWith(...texts), queueDir);
+   assert.equal(added, 3);
+ });
++
++test("story 누락 블록은 드롭한다", () => {
++  const queueDir = tmp();
++  const added = run(transcriptWith(block({ story: null })), queueDir);
++  assert.equal(added, 0);
++});
++
++test("10000자 초과 폭주 블록은 드롭한다", () => {
++  const queueDir = tmp();
++  const added = run(transcriptWith(block({ story: "가".repeat(11_000) })), queueDir);
++  assert.equal(added, 0);
++});
++
++test("30자 미만의 얇은 블록은 드롭한다", () => {
++  const queueDir = tmp();
++  const thin = "★ BlogWorthy ────────────\ntopic: 짧다\nstory: 응\n────────────";
++  const added = run(transcriptWith(thin), queueDir);
++  assert.equal(added, 0);
++});
++
++test("트랜스크립트 파일이 없으면 0을 반환하고 큐를 만들지 않는다", () => {
++  const queueDir = tmp();
++  const added = run(join(tmp(), "no-such.jsonl"), queueDir);
++  assert.equal(added, 0);
++  assert.equal(existsSync(join(queueDir, "sess-1.jsonl")), false);
++});
++
++test("CLI: 빈 페이로드 stdin이면 ADDED:0을 출력하고 exit 0", () => {
++  const out = execFileSync("node", [CLI], { input: "{}", encoding: "utf-8" });
++  assert.equal(out.trim(), "ADDED:0");
++});
+diff --git a/tests/helpers.mjs b/tests/helpers.mjs
+new file mode 100644
+index 0000000..db2f176
+--- /dev/null
++++ b/tests/helpers.mjs
+@@ -0,0 +1,21 @@
++/*
++ * 테스트 임시 디렉토리 팩토리.
++ * after() 훅에 정리를 등록해 테스트가 실패해도 시스템 temp에 산출물이
++ * 누적되지 않게 한다 (마지막 줄 rm은 실패 시 건너뛰어지므로 훅으로).
++ */
++import { after } from "node:test";
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++
++export function tmpFactory(prefix) {
++  const dirs = [];
++  after(() => {
++    for (const d of dirs) rmSync(d, { recursive: true, force: true });
++  });
++  return () => {
++    const d = mkdtempSync(join(tmpdir(), prefix));
++    dirs.push(d);
++    return d;
++  };
++}
+diff --git a/tests/markdown.test.mjs b/tests/markdown.test.mjs
+index 5b10d1e..0f699a3 100644
+--- a/tests/markdown.test.mjs
++++ b/tests/markdown.test.mjs
+@@ -42,6 +42,17 @@ test("빈 입력은 빈 결과를 낸다 (defaultTags 적용)", () => {
+   assert.deepEqual(tags, ["기본"]);
+ });
+ 
++test("frontmatter tags의 브래킷 리스트 형식도 파싱한다", () => {
++  const { tags } = parseMarkdown("---\ntitle: T\ntags: [a, b, c]\n---\n본문");
++  assert.deepEqual(tags, ["a", "b", "c"]);
++});
++
++test("CRLF frontmatter도 파싱한다", () => {
++  const { title, tags } = parseMarkdown("---\r\ntitle: 윈도우 줄바꿈\r\ntags: a, b\r\n---\r\n본문");
++  assert.equal(title, "윈도우 줄바꿈");
++  assert.deepEqual(tags, ["a", "b"]);
++});
++
+ test("본문 중간의 ## 소제목은 제목으로 오인하지 않는다", () => {
+   const md = "---\ntitle: T\n---\n## 소제목\n내용";
+   const { body } = parseMarkdown(md);
+diff --git a/tests/publish-gates.test.mjs b/tests/publish-gates.test.mjs
+new file mode 100644
+index 0000000..80e7632
+--- /dev/null
++++ b/tests/publish-gates.test.mjs
+@@ -0,0 +1,86 @@
++/*
++ * publish.mjs 안전 게이트 통합 테스트.
++ * 가장 높은 스테이크의 동작(시크릿 차단·중복 발행 방지)을 실제 CLI로 검증한다.
++ * paths.mjs가 os.homedir()($HOME)로 경로를 만들므로, HOME을 테스트 스크래치로
++ * 리다이렉트해 실제 ~/.auto-velog를 건드리지 않는다. 게이트는 전부 브라우저
++ * 실행 전에 평가되므로 Playwright 브라우저는 뜨지 않는다.
++ */
++import test from "node:test";
++import assert from "node:assert/strict";
++import { writeFileSync, mkdirSync, existsSync } from "node:fs";
++import { join } from "node:path";
++import { execFileSync } from "node:child_process";
++import { homedir } from "node:os";
++import { tmpFactory } from "./helpers.mjs";
++
++const tmp = tmpFactory("auto-velog-gates-");
++const CLI = new URL("../scripts/adapters/velog/publish.mjs", import.meta.url).pathname;
++
++function runPublish(draftPath, home, extraArgs = []) {
++  try {
++    const stdout = execFileSync("node", [CLI, draftPath, ...extraArgs], {
++      encoding: "utf-8",
++      env: { ...process.env, HOME: home },
++    });
++    return { code: 0, stdout };
++  } catch (e) {
++    return { code: e.status, stdout: (e.stdout || "") + (e.stderr || "") };
++  }
++}
++
++function draft(home, name, body, title = name) {
++  const p = join(home, `${name}.md`);
++  writeFileSync(p, `---\ntitle: ${title}\ntags: test\n---\n${body}\n`);
++  return p;
++}
++
++test("시크릿이 있으면 exit 3 + STATUS:BLOCKED (브라우저·로그인 전 차단)", () => {
++  const home = tmp();
++  const p = draft(home, "leaky", "배포 키 AKIAIOSFODNN7EXAMPLE 를 썼다");
++  const { code, stdout } = runPublish(p, home);
++  assert.equal(code, 3);
++  assert.match(stdout, /STATUS:BLOCKED/);
++});
++
++test("--force 로도 시크릿 차단은 우회되지 않는다", () => {
++  const home = tmp();
++  const p = draft(home, "leaky-force", "토큰 ghp_abcdefghijklmnopqrstuvwxyz0123456789");
++  const { code, stdout } = runPublish(p, home, ["--force"]);
++  assert.equal(code, 3);
++  assert.match(stdout, /STATUS:BLOCKED/);
++});
++
++test("publish-log에 같은 제목이 있으면 exit 0 + STATUS:ALREADY_PUBLISHED", () => {
++  const home = tmp();
++  mkdirSync(join(home, ".auto-velog"), { recursive: true });
++  writeFileSync(
++    join(home, ".auto-velog", "publish-log.jsonl"),
++    JSON.stringify({ ts: "2026-08-14T01:00:00Z", title: "중복 글", url: "u" }) + "\n"
++  );
++  const p = draft(home, "dup", "깨끗한 본문입니다", "중복 글");
++  const { code, stdout } = runPublish(p, home);
++  assert.equal(code, 0);
++  assert.match(stdout, /STATUS:ALREADY_PUBLISHED/);
++});
++
++test("frontmatter status:published 인 draft도 재발행하지 않는다", () => {
++  const home = tmp();
++  const p = join(home, "done.md");
++  writeFileSync(p, "---\ntitle: 끝난 글\ntags: t\nstatus: published\n---\n본문");
++  const { code, stdout } = runPublish(p, home);
++  assert.equal(code, 0);
++  assert.match(stdout, /STATUS:ALREADY_PUBLISHED/);
++});
++
++test("클린 + 미발행 + 쿠키 없음이면 exit 2 + STATUS:LOGIN_REQUIRED", () => {
++  const home = tmp();
++  const p = draft(home, "clean", "깨끗한 본문입니다");
++  const { code, stdout } = runPublish(p, home);
++  assert.equal(code, 2);
++  assert.match(stdout, /STATUS:LOGIN_REQUIRED/);
++});
++
++test("HOME 리다이렉트 확인: 실제 홈에는 아무것도 생기지 않는다", () => {
++  // 위 테스트들이 진짜 ~/.auto-velog를 만들었다면 격리 실패
++  assert.equal(existsSync(join(homedir(), ".auto-velog", "publish-log.jsonl")), false);
++});
+diff --git a/tests/publish-log.test.mjs b/tests/publish-log.test.mjs
+index c49a614..68f1a92 100644
+--- a/tests/publish-log.test.mjs
++++ b/tests/publish-log.test.mjs
+@@ -1,11 +1,11 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+-import { mkdtempSync, writeFileSync } from "node:fs";
+-import { tmpdir } from "node:os";
++import { writeFileSync } from "node:fs";
+ import { join } from "node:path";
+ import { isAlreadyPublished, publishedCountToday } from "../scripts/lib/publish-log.mjs";
++import { tmpFactory } from "./helpers.mjs";
+ 
+-const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-log-"));
++const tmp = tmpFactory("auto-velog-log-");
+ 
+ function logFile(entries) {
+   const p = join(tmp(), "publish-log.jsonl");
+diff --git a/tests/secret-scan.test.mjs b/tests/secret-scan.test.mjs
+index 9c15a69..3fcdfa7 100644
+--- a/tests/secret-scan.test.mjs
++++ b/tests/secret-scan.test.mjs
+@@ -1,12 +1,12 @@
+ import test from "node:test";
+ import assert from "node:assert/strict";
+-import { mkdtempSync, writeFileSync } from "node:fs";
+-import { tmpdir } from "node:os";
++import { writeFileSync } from "node:fs";
+ import { join } from "node:path";
+ import { execFileSync } from "node:child_process";
+ import { scanText } from "../scripts/secret-scan.mjs";
++import { tmpFactory } from "./helpers.mjs";
+ 
+-const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-scan-"));
++const tmp = tmpFactory("auto-velog-scan-");
+ const CLI = new URL("../scripts/secret-scan.mjs", import.meta.url).pathname;
+ 
+ function runCli(args) {
+@@ -33,6 +33,7 @@ test("유형별 시크릿을 탐지한다", () => {
+     ["email", "관리자 dch020223@gmail.com 에게"],
+     ["assignment", 'password = "hunter2hunter2"'],
+     ["url-creds", "DB는 postgres://admin:s3cretpw@db.example.com:5432/prod 로 연결"],
++    ["slack-token", "SLACK_TOKEN=xoxb-1234567890-abcdefghij"],
+   ];
+   for (const [type, text] of cases) {
+     const found = scanText(text);

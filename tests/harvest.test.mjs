@@ -2,9 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { harvest } from "../scripts/harvest.mjs";
-import { tmpFactory } from "./helpers.mjs";
+import { tmpFactory, runNodeCli } from "./helpers.mjs";
 
 const tmp = tmpFactory("auto-velog-harvest-");
 const CLI = new URL("../scripts/harvest.mjs", import.meta.url).pathname;
@@ -116,6 +115,7 @@ test("트랜스크립트 파일이 없으면 0을 반환하고 큐를 만들지 
 });
 
 test("CLI: 빈 페이로드 stdin이면 ADDED:0을 출력하고 exit 0", () => {
-  const out = execFileSync("node", [CLI], { input: "{}", encoding: "utf-8" });
-  assert.equal(out.trim(), "ADDED:0");
+  const { code, stdout } = runNodeCli(CLI, [], { input: "{}" });
+  assert.equal(code, 0);
+  assert.equal(stdout.trim(), "ADDED:0");
 });
