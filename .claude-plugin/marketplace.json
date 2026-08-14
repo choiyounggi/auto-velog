@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "auto-velog",
+  "description": "Session-driven blog automation for Claude Code — harvest blog-worthy dev experiences from your sessions and auto-publish styled posts to Velog.",
+  "owner": {
+    "name": "choiyounggi",
+    "url": "https://github.com/choiyounggi"
+  },
+  "plugins": [
+    {
+      "name": "auto-velog",
+      "description": "Captures ★ BlogWorthy moments (debugging war stories, discoveries, optimizations) during any session, then drafts a human-toned post from the actual transcript, runs a blocking secret/PII scan, and publishes to Velog. Publish mode defaults to approve; fully-automatic mode is opt-in.",
+      "category": "productivity",
+      "author": {
+        "name": "choiyounggi",
+        "url": "https://github.com/choiyounggi"
+      },
+      "source": "./",
+      "homepage": "https://github.com/choiyounggi/auto-velog",
+      "version": "0.1.0",
+      "tags": ["blog", "velog", "automation", "writing", "hooks"]
+    }
+  ]
+}
