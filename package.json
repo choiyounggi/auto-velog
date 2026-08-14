@@ -4,7 +4,7 @@
   "private": true,
   "description": "Claude Code plugin: harvest blog-worthy moments from sessions and auto-publish styled posts to Velog",
   "scripts": {
-    "test": "node --test tests/"
+    "test": "node --test"
   },
   "dependencies": {
     "playwright": "^1.49.0"
