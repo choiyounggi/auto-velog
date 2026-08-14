@@ -60,7 +60,7 @@ PROMPT='Run the auto-velog:draft skill now. Process every pending row in ~/.auto
 
 # 최소 권한: 트랜스크립트에 섞인 임의 콘텐츠(프롬프트 인젝션 가능성)를 읽는
 # 무인 세션이므로 bypassPermissions 대신 필요한 도구만 허용한다.
-ALLOWED='Read Write Edit Glob Grep WebFetch Skill Bash(node:*) Bash(osascript:*) Bash(mkdir:*)'
+ALLOWED='Read Write Edit Glob Grep WebFetch WebSearch Skill Bash(node:*) Bash(osascript:*) Bash(mkdir:*)'
 
 # stdin은 명시적으로 분리한다: BSD(macOS) nohup은 GNU와 달리 stdin을 건드리지
 # 않고, 훅의 fd 0은 Stop 페이로드 파이프라서 프롬프트 가능 CLI가 잡고 있으면
