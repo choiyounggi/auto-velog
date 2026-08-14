@@ -34,9 +34,16 @@ node "$PLUGIN/scripts/adapters/velog/check-login.mjs"
 
 ## 2. 발행
 
+발행 직전에 커버(썸네일)를 생성한다 (best-effort — 커버 생성이 실패해도 발행은 진행):
+
 ```bash
-node "$PLUGIN/scripts/adapters/velog/publish.mjs" <draft.md>
+node "$PLUGIN/scripts/cover.mjs" <draft.md>   # stdout 2번째 줄 = 생성된 PNG 경로
+node "$PLUGIN/scripts/adapters/velog/publish.mjs" <draft.md> <cover.png>
 ```
+
+커버는 AI 생성 이미지가 아니라 제목·태그 기반 타이포그래피 카드다. 본문에 코드
+블록이 있으면 terminal(코드 카드), 없으면 light 변형이 자동 선택되고, 색상은 태그
+해시로 결정된다 (`--variant light|terminal|block`으로 강제 가능).
 
 발행 스크립트는 **스스로도** 시크릿 스캔과 중복 발행 가드를 강제한다 (코드 레벨 백스톱):
 

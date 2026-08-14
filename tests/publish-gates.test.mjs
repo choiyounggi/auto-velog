@@ -7,12 +7,15 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { tmpFactory, runNodeCli } from "./helpers.mjs";
 
 const tmp = tmpFactory("auto-velog-gates-");
+const REAL_LOG = join(homedir(), ".auto-velog", "publish-log.jsonl");
+const readRealLog = () => (existsSync(REAL_LOG) ? readFileSync(REAL_LOG, "utf8") : null);
+const REAL_LOG_BEFORE = readRealLog();
 const CLI = new URL("../scripts/adapters/velog/publish.mjs", import.meta.url).pathname;
 
 const runPublish = (draftPath, home, extraArgs = []) =>
@@ -70,7 +73,8 @@ test("클린 + 미발행 + 쿠키 없음이면 exit 2 + STATUS:LOGIN_REQUIRED", 
   assert.match(stdout, /STATUS:LOGIN_REQUIRED/);
 });
 
-test("HOME 리다이렉트 확인: 실제 홈에는 아무것도 생기지 않는다", () => {
-  // 위 테스트들이 진짜 ~/.auto-velog를 만들었다면 격리 실패
-  assert.equal(existsSync(join(homedir(), ".auto-velog", "publish-log.jsonl")), false);
+test("HOME 리다이렉트 확인: 실제 홈의 발행 로그가 변하지 않는다", () => {
+  // 위 테스트들이 진짜 ~/.auto-velog에 기록했다면 격리 실패.
+  // 실사용 머신에는 로그가 원래 존재할 수 있으므로 "부재"가 아니라 "불변"을 검증한다.
+  assert.deepEqual(readRealLog(), REAL_LOG_BEFORE);
 });

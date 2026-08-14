@@ -140,32 +140,29 @@ async function main() {
     if (thumbnailPath && existsSync(thumbnailPath)) {
       console.log("[2/3] 썸네일 업로드 시도...");
       try {
+        // 출간 패널을 열어야 "썸네일 업로드" 버튼이 생긴다 (제목이 비어 있으면 패널이 안 열림)
+        await page.locator("textarea").first().fill(title);
         const publishBtn = page.getByRole("button", { name: "출간하기" }).first();
         await publishBtn.waitFor({ state: "visible", timeout: 10000 });
         await publishBtn.click();
-        await sleep(2000);
-        const fileInput = page.locator('input[type="file"]');
-        if ((await fileInput.count()) > 0) {
-          await fileInput.setInputFiles(thumbnailPath);
-          for (let i = 0; i < 15; i++) {
-            await sleep(1000);
-            thumbnailUrl = await page.evaluate(() => {
-              const imgs = Array.from(document.querySelectorAll("img"));
-              for (const img of imgs) {
-                const src = img.src || "";
-                if (
-                  src.startsWith("https://") &&
-                  (src.includes("velcdn.com") || src.includes("velog.io") ||
-                    src.includes("amazonaws.com") || src.includes("cdn."))
-                ) {
-                  return src;
-                }
-              }
-              return null;
-            });
-            if (thumbnailUrl) break;
-          }
-        }
+        const uploadBtn = page.getByRole("button", { name: "썸네일 업로드" }).first();
+        await uploadBtn.waitFor({ state: "visible", timeout: 10000 });
+        // 파일 입력이 DOM에 없고 네이티브 file chooser를 띄우는 방식이라
+        // filechooser 이벤트로 주입하고, 업로드 API 응답에서 CDN URL을 받는다
+        const [uploadRes] = await Promise.all([
+          page.waitForResponse(
+            (r) => r.url().includes("/files/upload") && r.ok(),
+            { timeout: 20000 }
+          ),
+          (async () => {
+            const [chooser] = await Promise.all([
+              page.waitForEvent("filechooser", { timeout: 10000 }),
+              uploadBtn.click(),
+            ]);
+            await chooser.setFiles(thumbnailPath);
+          })(),
+        ]);
+        thumbnailUrl = (await uploadRes.json()).path || null;
         console.log("[2/3] 썸네일:", thumbnailUrl ? "업로드됨" : "미확보 (없이 발행)");
       } catch (err) {
         console.warn("[2/3] 썸네일 업로드 실패 (건너뜀):", err.message);
