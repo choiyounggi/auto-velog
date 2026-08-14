@@ -20,6 +20,7 @@ const PATTERNS = [
   ["slack-token", /xox[baprs]-[A-Za-z0-9-]{10,}/g],
   ["jwt", /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}/g],
   ["private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/g],
+  ["url-creds", /[a-zA-Z][\w+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/g],
   ["private-ip", /\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g],
   ["email", /[\w.+-]+@[\w-]+\.[\w.]+/g],
   ["assignment", /(?:password|passwd|secret|api[_-]?key|token)\s*[=:]\s*['"][^'"\s]{8,}['"]/gi],

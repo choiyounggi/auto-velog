@@ -3,10 +3,16 @@
  * 브라우저 컨텍스트 안에서 GraphQL WritePost mutation을 직접 호출한다
  * (httpOnly access_token 쿠키가 credentials:include 로 자동 포함됨).
  *
- * 사용법: node publish.mjs <draft.md> [썸네일.png] [--private]
- *   exit 0 = 발행 성공 (stdout STATUS:PUBLISHED + URL:)
+ * 사용법: node publish.mjs <draft.md> [썸네일.png] [--private] [--force]
+ *   exit 0 = 발행 성공 (stdout STATUS:PUBLISHED + URL:) 또는 이미 발행됨 (STATUS:ALREADY_PUBLISHED)
  *   exit 2 = 로그인 필요 (STATUS:LOGIN_REQUIRED)
+ *   exit 3 = 시크릿 탐지로 차단 (STATUS:BLOCKED)
  *   exit 1 = 기타 실패
+ *
+ * 안전 게이트는 이 스크립트 안에서 강제된다 (호출자가 스킬 지시를 건너뛰어도):
+ *   - 시크릿 스캔: 발행 직전 본문을 자체 스캔, 탐지 시 무조건 차단 (--force로도 못 끔)
+ *   - 중복 발행 가드: frontmatter status:published 또는 publish-log에 같은 제목이
+ *     있으면 발행하지 않음 (--force로만 무시 가능)
  *
  * draft.md 는 YAML frontmatter(title/tags/session/score) 우선, 없으면
  * 첫 H1을 제목으로, `**태그**:` 줄을 태그로 파싱한다.
@@ -17,6 +23,8 @@ import { join, dirname } from "node:path";
 import { SECRETS_DIR, PUBLISH_LOG, DATA_DIR } from "../../lib/paths.mjs";
 import { loadConfig } from "../../lib/config.mjs";
 import { parseMarkdown } from "../../lib/markdown.mjs";
+import { isAlreadyPublished } from "../../lib/publish-log.mjs";
+import { scanText } from "../../secret-scan.mjs";
 
 const VELOG_COOKIE_PATH = join(SECRETS_DIR, "velog-cookies.json");
 const VELOG_LS_PATH = join(SECRETS_DIR, "velog-localstorage.json");
@@ -28,6 +36,7 @@ function sleep(ms) {
 async function main() {
   const args = process.argv.slice(2);
   const isPrivate = args.includes("--private");
+  const force = args.includes("--force");
   const positional = args.filter((a) => !a.startsWith("--"));
   const mdFilePath = positional[0];
   const thumbnailPath = positional[1] || null;
@@ -40,12 +49,6 @@ async function main() {
     console.error("파일을 찾을 수 없습니다:", mdFilePath);
     process.exit(1);
   }
-  if (!existsSync(VELOG_COOKIE_PATH)) {
-    console.error("Velog 쿠키 파일이 없습니다. 먼저 로그인하세요: node login.mjs");
-    console.log("STATUS:LOGIN_REQUIRED");
-    process.exit(2);
-  }
-
   const config = loadConfig();
   const { title, body, tags, meta } = parseMarkdown(
     readFileSync(mdFilePath, "utf-8"),
@@ -62,6 +65,31 @@ async function main() {
   if (!body) {
     console.error("본문이 비어 있습니다.");
     process.exit(1);
+  }
+
+  // --- 코드 레벨 안전 게이트 (스킬 지시와 무관하게 항상 실행) ---------------
+
+  // 1) 중복 발행 가드: frontmatter status 또는 publish-log의 같은 제목
+  if (!force && (meta.status === "published" || isAlreadyPublished(title))) {
+    console.log("이미 발행된 글입니다 (재발행하려면 --force).");
+    console.log("STATUS:ALREADY_PUBLISHED");
+    process.exit(0);
+  }
+
+  // 2) 시크릿 스캔: 탐지 시 무조건 차단 (--force로도 우회 불가)
+  const findings = scanText(title + "\n" + body, config.secretScan.denyPatterns || []);
+  if (findings.length) {
+    console.error("시크릿/PII 탐지 — 발행을 차단합니다:");
+    console.error(JSON.stringify(findings, null, 2));
+    console.log("STATUS:BLOCKED");
+    process.exit(3);
+  }
+
+  // 게이트 통과 후에야 로그인 요구 (시크릿 차단은 로그인 여부와 무관해야 함)
+  if (!existsSync(VELOG_COOKIE_PATH)) {
+    console.error("Velog 쿠키 파일이 없습니다. 먼저 로그인하세요: node login.mjs");
+    console.log("STATUS:LOGIN_REQUIRED");
+    process.exit(2);
   }
 
   const cookies = JSON.parse(readFileSync(VELOG_COOKIE_PATH, "utf-8"));

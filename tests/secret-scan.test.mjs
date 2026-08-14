@@ -32,6 +32,7 @@ test("유형별 시크릿을 탐지한다", () => {
     ["private-ip", "서버는 192.168.0.42 에 있다"],
     ["email", "관리자 dch020223@gmail.com 에게"],
     ["assignment", 'password = "hunter2hunter2"'],
+    ["url-creds", "DB는 postgres://admin:s3cretpw@db.example.com:5432/prod 로 연결"],
   ];
   for (const [type, text] of cases) {
     const found = scanText(text);

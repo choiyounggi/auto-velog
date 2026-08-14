@@ -38,7 +38,13 @@ node "$PLUGIN/scripts/adapters/velog/check-login.mjs"
 node "$PLUGIN/scripts/adapters/velog/publish.mjs" <draft.md>
 ```
 
-- exit 0 + `URL:` → 성공. frontmatter `status: published`로 갱신.
+발행 스크립트는 **스스로도** 시크릿 스캔과 중복 발행 가드를 강제한다 (코드 레벨 백스톱):
+
+- exit 0 + `STATUS:PUBLISHED` + `URL:` → 성공. frontmatter `status: published`로 갱신.
+- exit 0 + `STATUS:ALREADY_PUBLISHED` → 같은 제목이 이미 발행됨. frontmatter를
+  `status: published`로 맞추고 종료. (사용자가 명시적으로 재발행을 원할 때만 `--force`)
+- exit 3 + `STATUS:BLOCKED` → 스크립트 내부 시크릿 스캔에 걸림. `status: blocked`
+  처리 후 보고. (`--force`로도 우회 불가 — 레드액션이 유일한 해법)
 - exit 2 (로그인 필요) → login.mjs 실행 후 **1회만** 재시도.
 - 그 외 실패 → **1회만** 재시도. 그래도 실패면 `status: failed` + 에러 내용 보존.
 

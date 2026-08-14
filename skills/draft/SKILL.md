@@ -92,6 +92,9 @@ node "$PLUGIN/scripts/secret-scan.mjs" ~/.auto-velog/drafts/<파일>.md
 - 오늘 발행 수(`publish-log.jsonl`에서 오늘 날짜 카운트) < `config.publish.dailyCap`
 
 발행: `skills/publish/SKILL.md`의 절차를 따른다 (로그인 체크 → 발행 → 재시도 1회).
+publish.mjs는 시크릿 스캔·중복 발행 가드를 내부에서도 강제하므로(exit 3 = BLOCKED,
+`STATUS:ALREADY_PUBLISHED`), 이 절차를 건너뛰어도 유출·중복 발행은 일어나지 않는다 —
+그래도 절차대로 사전 스캔을 해야 레드액션 기회가 생긴다.
 발행하면 frontmatter `status: published`, 상한 초과면 `status: deferred`,
 approve 모드면 `status: pending` 유지.
 
@@ -99,6 +102,7 @@ approve 모드면 `status: pending` 유지.
 
 - 처리한 row를 원본 큐 파일에서 제거하고, status를 갱신해
   `~/.auto-velog/queue/.processed.jsonl`에 append한다 (dedup 시드로 쓰이므로 필수).
+  **큐 파일 수정은 Write/Edit 도구로 한다** (headless 실행은 셸 파일 조작 권한이 없음).
 - `~/.auto-velog/log.jsonl`에 `{ts, event, session, draft, score, status, url?}` append.
 - macOS 알림 (best-effort, 실패 무시):
   ```bash

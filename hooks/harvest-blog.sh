@@ -42,10 +42,12 @@ if [ -f "$STAMP" ] && [ -n "$(find "$STAMP" -mmin "-$INTERVAL_MIN" 2>/dev/null)"
   exit 0
 fi
 
-# single-flight lock (mkdir 원자성, TTL 30분)
+# single-flight lock (mkdir 원자성). 실행 중인 프로세스가 60초마다 lock을
+# touch(heartbeat)하므로, mtime이 5분 이상 오래됐을 때만 죽은 lock으로 회수한다.
+# (draft 실행이 30분을 넘어도 heartbeat가 살아 있으면 절대 동시 spawn되지 않음)
 LOCK="$DIR/.autodraft.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
-  [ -n "$(find "$LOCK" -mmin -30 2>/dev/null)" ] && exit 0
+  [ -n "$(find "$LOCK" -maxdepth 0 -mmin -5 2>/dev/null)" ] && exit 0
   rmdir "$LOCK" 2>/dev/null; mkdir "$LOCK" 2>/dev/null || exit 0
 fi
 touch "$STAMP" 2>/dev/null
@@ -53,10 +55,19 @@ touch "$STAMP" 2>/dev/null
 CLAUDE_BIN="$(command -v claude)"
 PROMPT='Run the auto-velog:draft skill now. Process every pending row in ~/.auto-velog/queue: score the candidate against the worthiness rubric, read its session transcript, write a styled draft, run the blocking secret scan, and publish only if config allows (mode=auto, score>=minScore, daily cap). Move processed rows to .processed.jsonl. If the queue is empty, do nothing.'
 
+# 최소 권한: 트랜스크립트에 섞인 임의 콘텐츠(프롬프트 인젝션 가능성)를 읽는
+# 무인 세션이므로 bypassPermissions 대신 필요한 도구만 허용한다.
+ALLOWED='Read Write Edit Glob Grep WebFetch Skill Bash(node:*) Bash(osascript:*) Bash(mkdir:*)'
+
 (
   AUTO_VELOG_DRAFTING=1 nohup "$CLAUDE_BIN" -p "$PROMPT" \
-    --permission-mode bypassPermissions \
-    > "$DIR/autodraft.log" 2>&1
+    --allowedTools "$ALLOWED" \
+    > "$DIR/autodraft.log" 2>&1 &
+  CPID=$!
+  while kill -0 "$CPID" 2>/dev/null; do
+    touch "$LOCK" 2>/dev/null
+    sleep 60
+  done
   rmdir "$LOCK" 2>/dev/null
 ) &
 disown 2>/dev/null
