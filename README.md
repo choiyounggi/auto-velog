@@ -21,7 +21,7 @@ Claude Code 플러그인입니다.
   ③ 스타일 프로필로 집필 (구어체 존댓말, 결론 선행, 시행착오 기록)
   ④ 시크릿/PII 스캔 — 블로킹. 통과 못 하면 발행 중단
        ↓  mode=auto && score ≥ minScore && 일일 상한 미달일 때만
-[발행] 로그인 체크 → 자동 로그인 → GraphQL 발행 → 알림
+[발행] 로그인 체크 → 자동 로그인 → 커버(썸네일) 생성·업로드 → GraphQL 발행 → 알림
 ```
 
 수집(harvest)과 발행(promote)을 분리한 [dev-loop](https://github.com/choiyounggi/dev-loop)
@@ -85,6 +85,17 @@ setup 스킬이 데이터 디렉토리 생성, config 작성, Velog 로그인(�
 - **완전 비활성화**: 환경변수 `AUTO_VELOG_AUTODRAFT=0`
 - 쿠키·시크릿은 전부 `~/.auto-velog/secrets/` 로컬 보관 — 레포에 절대 커밋되지 않음
 
+## 커버(썸네일)
+
+발행 시 AI 생성 이미지 대신 **제목·태그 기반 타이포그래피 커버**(1200×630)를
+자동 생성해 대표 이미지로 올립니다. 본문에 코드 블록이 있으면 실제 코드가 실린
+터미널 카드(`terminal`), 없으면 밝은 타이포 카드(`light`)가 선택되고, 색상은
+태그 해시로 글마다 달라집니다.
+
+```bash
+node scripts/cover.mjs <draft.md> [--variant light|terminal|block]
+```
+
 ## 다른 플랫폼 어댑터 추가
 
 `scripts/adapters/<플랫폼>/`에 세 스크립트를 같은 계약으로 구현하면 됩니다:
@@ -93,7 +104,7 @@ setup 스킬이 데이터 디렉토리 생성, config 작성, Velog 로그인(�
 |----------|------|
 | `check-login.mjs` | stdout `STATUS:LOGGED_IN` \| `NOT_LOGGED_IN` \| `NAVER_EXPIRED`(재인증 필요) |
 | `login.mjs` | 성공 시 `STATUS:LOGGED_IN`, 실패 exit 1 |
-| `publish.mjs <draft.md> [--private]` | 성공 `STATUS:PUBLISHED` + `URL:<url>` / exit 2 로그인 필요 / exit 1 실패 |
+| `publish.mjs <draft.md> [커버.png] [--private]` | 성공 `STATUS:PUBLISHED` + `URL:<url>` / exit 2 로그인 필요 / exit 1 실패 |
 
 `config.platform`을 해당 디렉토리명으로 바꾸면 스킬이 그 어댑터를 사용합니다.
 
@@ -105,4 +116,4 @@ npm test   # node:test — harvest 파서, 시크릿 스캐너, config, 마크�
 
 ## 라이선스
 
-MIT
+[MIT](LICENSE)
