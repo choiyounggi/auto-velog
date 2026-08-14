@@ -29,15 +29,16 @@ Claude Code 플러그인입니다.
 
 ## 설치
 
-```bash
-# 1. 플러그인 설치 (marketplace 또는 git)
-git clone https://github.com/choiyounggi/auto-velog.git
-# Claude Code 플러그인으로 등록 (~/.claude/settings.json 또는 marketplace)
+Claude Code 안에서:
 
-# 2. 의존성
-cd auto-velog && npm i && npx playwright install chromium
+```
+/plugin marketplace add choiyounggi/auto-velog
+/plugin install auto-velog@auto-velog
+```
 
-# 3. 최초 설정 — Claude Code에서
+설치 후 새 세션에서 최초 설정을 실행합니다 (의존성 npm i / playwright 설치까지 안내):
+
+```
 /auto-velog:setup
 ```
 
