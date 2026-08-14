@@ -42,6 +42,11 @@ test("빈 입력은 빈 결과를 낸다 (defaultTags 적용)", () => {
   assert.deepEqual(tags, ["기본"]);
 });
 
+test("frontmatter tags의 브래킷 리스트 형식도 파싱한다", () => {
+  const { tags } = parseMarkdown("---\ntitle: T\ntags: [a, b, c]\n---\n본문");
+  assert.deepEqual(tags, ["a", "b", "c"]);
+});
+
 test("본문 중간의 ## 소제목은 제목으로 오인하지 않는다", () => {
   const md = "---\ntitle: T\n---\n## 소제목\n내용";
   const { body } = parseMarkdown(md);

@@ -30,7 +30,10 @@ ADDED="$(printf '%s' "$INPUT" | node "$HARVEST_MJS" 2>/dev/null | sed -n 's/^ADD
 [ -n "$ADDED" ] && [ "$ADDED" -gt 0 ] 2>/dev/null || exit 0
 
 # --- draft spawn 가드 ------------------------------------------------------
-[ "${AUTO_VELOG_AUTODRAFT:-1}" = "0" ] && exit 0
+# 킬 스위치: 0/off/false 모두 인식 (빈 값은 "설정 안 함"으로 취급)
+case "${AUTO_VELOG_AUTODRAFT:-1}" in
+  0|off|false) exit 0 ;;
+esac
 [ -f "$DIR/PAUSE" ] && exit 0
 command -v claude >/dev/null 2>&1 || exit 0
 
@@ -59,14 +62,27 @@ PROMPT='Run the auto-velog:draft skill now. Process every pending row in ~/.auto
 # 무인 세션이므로 bypassPermissions 대신 필요한 도구만 허용한다.
 ALLOWED='Read Write Edit Glob Grep WebFetch Skill Bash(node:*) Bash(osascript:*) Bash(mkdir:*)'
 
+# stdin은 명시적으로 분리한다: BSD(macOS) nohup은 GNU와 달리 stdin을 건드리지
+# 않고, 훅의 fd 0은 Stop 페이로드 파이프라서 프롬프트 가능 CLI가 잡고 있으면
+# hang의 원인이 된다. -p 플래그는 정책이고 리다이렉트가 보증이다.
+# 런타임 상한(기본 120분): hang한 headless 세션이 heartbeat로 락을 영원히
+# 쥐는 것을 막는다 (macOS엔 GNU timeout이 없어 watchdog 루프로 구현).
+MAX_MIN="${AUTO_VELOG_DRAFT_MAX_MIN:-120}"
 (
   AUTO_VELOG_DRAFTING=1 nohup "$CLAUDE_BIN" -p "$PROMPT" \
     --allowedTools "$ALLOWED" \
-    > "$DIR/autodraft.log" 2>&1 &
+    < /dev/null > "$DIR/autodraft.log" 2>&1 &
   CPID=$!
+  ELAPSED=0
   while kill -0 "$CPID" 2>/dev/null; do
+    if [ "$ELAPSED" -ge "$MAX_MIN" ]; then
+      kill "$CPID" 2>/dev/null
+      echo "[watchdog] draft run exceeded ${MAX_MIN}min — killed" >> "$DIR/autodraft.log"
+      break
+    fi
     touch "$LOCK" 2>/dev/null
     sleep 60
+    ELAPSED=$((ELAPSED + 1))
   done
   rmdir "$LOCK" 2>/dev/null
 ) &

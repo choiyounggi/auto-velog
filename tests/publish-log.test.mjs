@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isAlreadyPublished, publishedCountToday } from "../scripts/lib/publish-log.mjs";
+import { tmpFactory } from "./helpers.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-log-"));
+const tmp = tmpFactory("auto-velog-log-");
 
 function logFile(entries) {
   const p = join(tmp(), "publish-log.jsonl");

@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { extractBlocks, harvest } from "../scripts/harvest.mjs";
+import { execFileSync } from "node:child_process";
+import { harvest } from "../scripts/harvest.mjs";
+import { tmpFactory } from "./helpers.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-harvest-"));
+const tmp = tmpFactory("auto-velog-harvest-");
+const CLI = new URL("../scripts/harvest.mjs", import.meta.url).pathname;
 
 function block({ topic = "pf 방화벽 재부팅 함정", story = "pf 규칙이 재부팅 후 사라져서 삽질하다 launchd로 해결했다", extra = "" } = {}) {
   return [
@@ -85,4 +87,29 @@ test("블록 4개면 캡 3까지만 적재한다", () => {
   const texts = [1, 2, 3, 4].map((i) => block({ topic: `주제 ${i}`, story: `이야기 ${i} — 문제를 겪고 해결한 서로 다른 기록` }));
   const added = run(transcriptWith(...texts), queueDir);
   assert.equal(added, 3);
+});
+
+test("story 누락 블록은 드롭한다", () => {
+  const queueDir = tmp();
+  const added = run(transcriptWith(block({ story: null })), queueDir);
+  assert.equal(added, 0);
+});
+
+test("30자 미만의 얇은 블록은 드롭한다", () => {
+  const queueDir = tmp();
+  const thin = "★ BlogWorthy ────────────\ntopic: 짧다\nstory: 응\n────────────";
+  const added = run(transcriptWith(thin), queueDir);
+  assert.equal(added, 0);
+});
+
+test("트랜스크립트 파일이 없으면 0을 반환하고 큐를 만들지 않는다", () => {
+  const queueDir = tmp();
+  const added = run(join(tmp(), "no-such.jsonl"), queueDir);
+  assert.equal(added, 0);
+  assert.equal(existsSync(join(queueDir, "sess-1.jsonl")), false);
+});
+
+test("CLI: 빈 페이로드 stdin이면 ADDED:0을 출력하고 exit 0", () => {
+  const out = execFileSync("node", [CLI], { input: "{}", encoding: "utf-8" });
+  assert.equal(out.trim(), "ADDED:0");
 });

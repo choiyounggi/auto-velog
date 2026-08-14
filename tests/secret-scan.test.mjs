@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { scanText } from "../scripts/secret-scan.mjs";
+import { tmpFactory } from "./helpers.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "auto-velog-scan-"));
+const tmp = tmpFactory("auto-velog-scan-");
 const CLI = new URL("../scripts/secret-scan.mjs", import.meta.url).pathname;
 
 function runCli(args) {
@@ -33,6 +33,7 @@ test("유형별 시크릿을 탐지한다", () => {
     ["email", "관리자 dch020223@gmail.com 에게"],
     ["assignment", 'password = "hunter2hunter2"'],
     ["url-creds", "DB는 postgres://admin:s3cretpw@db.example.com:5432/prod 로 연결"],
+    ["slack-token", "SLACK_TOKEN=xoxb-1234567890-abcdefghij"],
   ];
   for (const [type, text] of cases) {
     const found = scanText(text);
