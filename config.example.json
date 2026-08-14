@@ -1,0 +1,8 @@
+{
+  "platform": "velog",
+  "velog": { "email": "you@example.com", "username": "yourid" },
+  "style": { "referencePosts": [], "language": "ko", "targetLength": 3000 },
+  "publish": { "mode": "approve", "dailyCap": 1, "minScore": 7, "defaultTags": [] },
+  "secretScan": { "denyPatterns": [] },
+  "browser": { "headless": true }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "blog-loop",
+  "description": "Session-driven blog automation: a SessionStart hook asks the model to emit ★ BlogWorthy blocks when a debugging war story, discovery, methodology, or optimization worth writing about appears; a Stop hook harvests them into a queue and spawns a detached draft pipeline that scores the candidate, writes a human-toned post from the actual session transcript, runs a blocking secret/PII scan, and publishes to Velog through a pluggable adapter. Publish mode defaults to approve; auto mode is opt-in.",
+  "version": "0.1.0",
+  "author": {
+    "name": "choiyounggi",
+    "url": "https://github.com/choiyounggi"
+  },
+  "strict": false
+}
