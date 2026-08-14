@@ -61,6 +61,7 @@ export function extractBlocks(assistantText) {
   while ((m = re.exec(assistantText)) !== null) {
     const body = m[1].trim();
     if (body.length < 30) continue; // 글감이 되기엔 너무 얇음
+    if (body.length > 10_000) continue; // 폭주/악성 블록 백스톱 (지침은 한 문단 요약)
     const fields = parseBlock(body);
     if (!fields.topic || !fields.story) continue; // 필수 필드
     // 지침 템플릿 에코 방지: 플레이스홀더 <...> 잔존 시 드롭

@@ -95,6 +95,12 @@ test("story 누락 블록은 드롭한다", () => {
   assert.equal(added, 0);
 });
 
+test("10000자 초과 폭주 블록은 드롭한다", () => {
+  const queueDir = tmp();
+  const added = run(transcriptWith(block({ story: "가".repeat(11_000) })), queueDir);
+  assert.equal(added, 0);
+});
+
 test("30자 미만의 얇은 블록은 드롭한다", () => {
   const queueDir = tmp();
   const thin = "★ BlogWorthy ────────────\ntopic: 짧다\nstory: 응\n────────────";

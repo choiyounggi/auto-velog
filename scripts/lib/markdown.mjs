@@ -18,10 +18,10 @@ export function parseMarkdown(content, defaultTags = []) {
   const meta = {};
   let body = content;
 
-  // 1) YAML frontmatter 우선
-  const fm = content.match(/^---\n([\s\S]*?)\n---\n?/);
+  // 1) YAML frontmatter 우선 (CRLF 허용)
+  const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (fm) {
-    for (const line of fm[1].split("\n")) {
+    for (const line of fm[1].split(/\r?\n/)) {
       const m = line.match(/^(\w[\w-]*)\s*:\s*(.*)$/);
       if (!m) continue;
       const [, key, val] = m;

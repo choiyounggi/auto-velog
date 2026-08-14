@@ -47,6 +47,12 @@ test("frontmatter tags의 브래킷 리스트 형식도 파싱한다", () => {
   assert.deepEqual(tags, ["a", "b", "c"]);
 });
 
+test("CRLF frontmatter도 파싱한다", () => {
+  const { title, tags } = parseMarkdown("---\r\ntitle: 윈도우 줄바꿈\r\ntags: a, b\r\n---\r\n본문");
+  assert.equal(title, "윈도우 줄바꿈");
+  assert.deepEqual(tags, ["a", "b"]);
+});
+
 test("본문 중간의 ## 소제목은 제목으로 오인하지 않는다", () => {
   const md = "---\ntitle: T\n---\n## 소제목\n내용";
   const { body } = parseMarkdown(md);
