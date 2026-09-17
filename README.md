@@ -14,7 +14,9 @@ Claude Code 플러그인입니다.
   SessionStart 훅 → "★ BlogWorthy 블록을 발현하라" 지침 주입
        ↓  개발 경험이 완결되면 모델이 블록 발현 (topic/angle/story/code-refs)
   Stop 훅 → 트랜스크립트에서 블록 수확 → ~/.auto-velog/queue/
-       ↓  detached headless claude 로 draft 파이프라인 spawn (세션 종료 안 막음)
+       ↓  새 글감이 있으면 detached headless claude 로 draft 파이프라인 spawn
+       ↓  새 글감이 없어도 밀린 초안이 있고 오늘 상한에 여유가 있으면 배수 실행
+          (세션 종료를 막지 않음)
 [draft 파이프라인]
   ① 글감 심사 (10점 척도, minScore 미달 시 발행 안 함)
   ② 세션 트랜스크립트 분석 (문제 → 삽질 → 해결 + 실제 코드 인용)
@@ -23,6 +25,12 @@ Claude Code 플러그인입니다.
        ↓  mode=auto && score ≥ minScore && 일일 상한 미달일 때만
 [발행] 로그인 체크 → 자동 로그인 → 커버(썸네일) 생성·업로드 → GraphQL 발행 → 알림
 ```
+
+일일 상한에 걸린 초안은 `status: deferred`로 남는다. 배수 경로가 없으면 그 초안은
+아무도 다시 보지 않기 때문에(실측: 25건 적체), 새 글감이 없는 세션의 Stop 훅은
+`scripts/drain-check.mjs`로 "밀린 초안이 있고 오늘 상한에 여유가 있는가"를 판정해
+있으면 가장 오래된 `deferred` 한 건만 발행한다. `pending`·`blocked`·`failed`는 발행 판정을 거친 적이 없거나 사람이 봐야 하는 상태라 배수하지 않는다. 판정은 순수 함수라 단위 테스트가 검증하고,
+`mode=auto`가 아니거나 상한이 0이면 아무것도 하지 않는다.
 
 수집(harvest)과 발행(promote)을 분리한 [dev-loop](https://github.com/choiyounggi/dev-loop)
 패턴을 따릅니다: 세션 중에는 오프라인 포착만, 무거운 작업은 전부 세션 종료 후 백그라운드.
@@ -111,7 +119,8 @@ node scripts/cover.mjs <draft.md> [--variant light|terminal|block]
 ## 개발
 
 ```bash
-npm test   # node:test — harvest 파서, 시크릿 스캐너, config, 마크다운 파서
+npm test   # node:test — harvest 파서, 시크릿 스캐너, config, 마크다운 파서, 배수 판정
+           # cover 테스트는 playwright가 필요하다: 먼저 npm install
 ```
 
 ## 라이선스

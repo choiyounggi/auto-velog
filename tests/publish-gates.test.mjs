@@ -78,3 +78,97 @@ test("HOME 리다이렉트 확인: 실제 홈의 발행 로그가 변하지 않�
   // 실사용 머신에는 로그가 원래 존재할 수 있으므로 "부재"가 아니라 "불변"을 검증한다.
   assert.deepEqual(readRealLog(), REAL_LOG_BEFORE);
 });
+
+// --- 상태 가드 / 일일 상한 (무인 배수 경로 때문에 코드로 내려온 게이트) --------
+
+function draftWithStatus(home, name, status) {
+  const p = join(home, `${name}.md`);
+  writeFileSync(p, `---\ntitle: ${name}\ntags: test\nstatus: ${status}\n---\n평범한 본문입니다.\n`);
+  return p;
+}
+
+function withConfig(home, publish) {
+  mkdirSync(join(home, ".auto-velog"), { recursive: true });
+  writeFileSync(join(home, ".auto-velog", "config.json"), JSON.stringify({ publish }));
+}
+
+function logPublishedToday(home, n) {
+  mkdirSync(join(home, ".auto-velog"), { recursive: true });
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    rows.push(JSON.stringify({ title: `기존 글 ${i}`, ts: new Date().toISOString(), url: "u" }));
+  }
+  writeFileSync(join(home, ".auto-velog", "publish-log.jsonl"), rows.join("\n") + "\n");
+}
+
+test("blocked 초안은 exit 4 + STATUS:NOT_ELIGIBLE", () => {
+  const home = tmp();
+  const { code, stdout } = runPublish(draftWithStatus(home, "blocked-one", "blocked"), home);
+  assert.equal(code, 4);
+  assert.match(stdout, /STATUS:NOT_ELIGIBLE/);
+});
+
+test("failed 초안도 발행되지 않는다", () => {
+  const home = tmp();
+  const { code } = runPublish(draftWithStatus(home, "failed-one", "failed"), home);
+  assert.equal(code, 4);
+});
+
+test("deferred 초안은 상태 가드를 통과한다 (상한 전까지)", () => {
+  const home = tmp();
+  withConfig(home, { mode: "auto", dailyCap: 5, defaultTags: [] });
+  const { code, stdout } = runPublish(draftWithStatus(home, "deferred-one", "deferred"), home);
+  assert.notEqual(code, 4);
+  assert.doesNotMatch(stdout, /STATUS:NOT_ELIGIBLE/);
+});
+
+test("--force 는 상태 가드를 우회한다", () => {
+  const home = tmp();
+  withConfig(home, { mode: "auto", dailyCap: 5, defaultTags: [] });
+  const { code } = runPublish(draftWithStatus(home, "blocked-forced", "blocked"), home, ["--force"]);
+  assert.notEqual(code, 4);
+});
+
+test("오늘 상한을 채웠으면 exit 5 + STATUS:CAP_REACHED", () => {
+  const home = tmp();
+  withConfig(home, { mode: "auto", dailyCap: 1, defaultTags: [] });
+  logPublishedToday(home, 1);
+  const { code, stdout } = runPublish(draftWithStatus(home, "over-cap", "deferred"), home);
+  assert.equal(code, 5);
+  assert.match(stdout, /STATUS:CAP_REACHED/);
+});
+
+test("상한에 여유가 있으면 상한 가드는 통과한다", () => {
+  const home = tmp();
+  withConfig(home, { mode: "auto", dailyCap: 3, defaultTags: [] });
+  logPublishedToday(home, 1);
+  const { code, stdout } = runPublish(draftWithStatus(home, "under-cap", "deferred"), home);
+  assert.notEqual(code, 5);
+  assert.doesNotMatch(stdout, /STATUS:CAP_REACHED/);
+});
+
+test("--ignore-cap 은 상한을 우회한다", () => {
+  const home = tmp();
+  withConfig(home, { mode: "auto", dailyCap: 1, defaultTags: [] });
+  logPublishedToday(home, 5);
+  const { code } = runPublish(draftWithStatus(home, "cap-ignored", "deferred"), home, ["--ignore-cap"]);
+  assert.notEqual(code, 5);
+});
+
+test("--private 테스트 발행은 상한에서 제외된다 (setup 스킬이 막히지 않도록)", () => {
+  const home = tmp();
+  withConfig(home, { mode: "auto", dailyCap: 1, defaultTags: [] });
+  logPublishedToday(home, 3);
+  const { code } = runPublish(draftWithStatus(home, "private-test", "pending"), home, ["--private"]);
+  assert.notEqual(code, 5);
+});
+
+test("상한 가드는 시크릿 차단보다 뒤에 있지 않다 — 시크릿이 있으면 상한과 무관하게 exit 3", () => {
+  const home = tmp();
+  withConfig(home, { mode: "auto", dailyCap: 9, defaultTags: [] });
+  const p = join(home, "leaky-deferred.md");
+  writeFileSync(p, `---\ntitle: leaky-deferred\ntags: test\nstatus: deferred\n---\n키 AKIAIOSFODNN7EXAMPLE 노출\n`);
+  const { code, stdout } = runPublish(p, home);
+  assert.equal(code, 3);
+  assert.match(stdout, /STATUS:BLOCKED/);
+});

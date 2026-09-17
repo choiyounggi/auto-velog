@@ -17,8 +17,14 @@
       },
       "source": "./",
       "homepage": "https://github.com/choiyounggi/auto-velog",
-      "version": "0.1.0",
-      "tags": ["blog", "velog", "automation", "writing", "hooks"]
+      "version": "0.2.0",
+      "tags": [
+        "blog",
+        "velog",
+        "automation",
+        "writing",
+        "hooks"
+      ]
     }
   ]
 }

@@ -3,16 +3,26 @@
  * 브라우저 컨텍스트 안에서 GraphQL WritePost mutation을 직접 호출한다
  * (httpOnly access_token 쿠키가 credentials:include 로 자동 포함됨).
  *
- * 사용법: node publish.mjs <draft.md> [썸네일.png] [--private] [--force]
+ * 사용법: node publish.mjs <draft.md> [썸네일.png] [--private] [--force] [--ignore-cap]
  *   exit 0 = 발행 성공 (stdout STATUS:PUBLISHED + URL:) 또는 이미 발행됨 (STATUS:ALREADY_PUBLISHED)
  *   exit 2 = 로그인 필요 (STATUS:LOGIN_REQUIRED)
  *   exit 3 = 시크릿 탐지로 차단 (STATUS:BLOCKED)
+ *   exit 4 = 발행 대상이 아닌 상태 (STATUS:NOT_ELIGIBLE)
+ *   exit 5 = 오늘 발행 상한 소진 (STATUS:CAP_REACHED)
  *   exit 1 = 기타 실패
  *
  * 안전 게이트는 이 스크립트 안에서 강제된다 (호출자가 스킬 지시를 건너뛰어도):
  *   - 시크릿 스캔: 발행 직전 본문을 자체 스캔, 탐지 시 무조건 차단 (--force로도 못 끔)
  *   - 중복 발행 가드: frontmatter status:published 또는 publish-log에 같은 제목이
  *     있으면 발행하지 않음 (--force로만 무시 가능)
+ *   - 상태 가드: blocked/failed 초안은 사람이 봐야 하는 상태라 발행하지 않음
+ *     (--force로만 무시 가능)
+ *   - 일일 상한: publish.dailyCap을 넘기면 발행하지 않음 (--ignore-cap으로만 무시).
+ *     --private(설정 테스트 발행)은 상한에서 제외된다.
+ *
+ * 마지막 두 게이트는 무인 배수 경로 때문에 코드로 내려왔다: 밀린 초안을 발행하는
+ * 헤드리스 세션은 그 초안을 쓴 세션이 아니라 컨텍스트가 없고, "deferred 중 가장
+ * 오래된 한 건만"이라는 약속이 프롬프트 문장에만 있으면 그건 보장이 아니다.
  *
  * draft.md 는 YAML frontmatter(title/tags/session/score) 우선, 없으면
  * 첫 H1을 제목으로, `**태그**:` 줄을 태그로 파싱한다.
@@ -22,7 +32,7 @@ import { join, dirname } from "node:path";
 import { SECRETS_DIR, PUBLISH_LOG, DATA_DIR } from "../../lib/paths.mjs";
 import { loadConfig } from "../../lib/config.mjs";
 import { parseMarkdown } from "../../lib/markdown.mjs";
-import { isAlreadyPublished } from "../../lib/publish-log.mjs";
+import { isAlreadyPublished, publishedCountToday } from "../../lib/publish-log.mjs";
 import { scanText } from "../../secret-scan.mjs";
 
 const VELOG_COOKIE_PATH = join(SECRETS_DIR, "velog-cookies.json");
@@ -36,6 +46,7 @@ async function main() {
   const args = process.argv.slice(2);
   const isPrivate = args.includes("--private");
   const force = args.includes("--force");
+  const ignoreCap = args.includes("--ignore-cap");
   const positional = args.filter((a) => !a.startsWith("--"));
   const mdFilePath = positional[0];
   const thumbnailPath = positional[1] || null;
@@ -75,7 +86,29 @@ async function main() {
     process.exit(0);
   }
 
-  // 2) 시크릿 스캔: 탐지 시 무조건 차단 (--force로도 우회 불가)
+  // 2) 상태 가드: 사람이 봐야 하는 상태는 발행하지 않는다
+  const NOT_PUBLISHABLE = new Set(["blocked", "failed"]);
+  const draftStatus = (meta.status || "").trim();
+  if (!force && NOT_PUBLISHABLE.has(draftStatus)) {
+    console.error(`status: ${draftStatus} 초안입니다 — 사람이 확인해야 합니다 (강제하려면 --force).`);
+    console.log("STATUS:NOT_ELIGIBLE");
+    process.exit(4);
+  }
+
+  // 3) 일일 상한: 비공개 테스트 발행은 제외
+  if (!ignoreCap && !isPrivate) {
+    const cap = Number(config.publish?.dailyCap);
+    if (Number.isFinite(cap) && cap > 0) {
+      const today = publishedCountToday();
+      if (today >= cap) {
+        console.error(`오늘 ${today}/${cap} — 일일 상한을 넘겨 발행하지 않습니다 (무시하려면 --ignore-cap).`);
+        console.log("STATUS:CAP_REACHED");
+        process.exit(5);
+      }
+    }
+  }
+
+  // 4) 시크릿 스캔: 탐지 시 무조건 차단 (--force로도 우회 불가)
   const findings = scanText(title + "\n" + body, config.secretScan.denyPatterns || []);
   if (findings.length) {
     console.error("시크릿/PII 탐지 — 발행을 차단합니다:");
