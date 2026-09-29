@@ -65,7 +65,8 @@ WebSearch/WebFetch로 조사한 내용을 정리해 추가해도 된다. 단:
 
 **분량:** `config.style.targetLength` (기본 3000자) 내외, 소제목 4~6개.
 
-`~/.auto-velog/drafts/YYYY-MM-DD-<slug>.md`로 저장 (slug는 topic의 영문/한글 케밥):
+`~/.auto-velog/drafts/YYYY-MM-DD-<slug>.md`로 저장 (slug는 topic을 **영문 소문자 케밥**으로: `a-z`·`0-9`·`-`만.
+한글 제목도 slug는 영문으로 옮겨 쓴다 — 자동 발행 명령은 jev-gate 허용 목록에서 ASCII 파일 이름만 통과한다):
 
 ```markdown
 ---
@@ -99,7 +100,8 @@ node "$PLUGIN/scripts/secret-scan.mjs" ~/.auto-velog/drafts/<파일>.md
 - `score >= config.publish.minScore`
 - 오늘 발행 수(`publish-log.jsonl`에서 오늘 날짜 카운트) < `config.publish.dailyCap`
 
-발행: `skills/publish/SKILL.md`의 절차를 따른다 (로그인 체크 → 발행 → 재시도 1회).
+발행: `skills/publish/SKILL.md`의 절차를 따르되 **자동 발행** 명령(`--auto`)을 쓴다
+(로그인 체크 → 발행 → 재시도 1회).
 publish.mjs는 시크릿 스캔·중복 발행 가드를 내부에서도 강제하므로(exit 3 = BLOCKED,
 `STATUS:ALREADY_PUBLISHED`), 이 절차를 건너뛰어도 유출·중복 발행은 일어나지 않는다 —
 그래도 절차대로 사전 스캔을 해야 레드액션 기회가 생긴다.

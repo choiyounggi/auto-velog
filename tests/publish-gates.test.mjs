@@ -172,3 +172,107 @@ test("상한 가드는 시크릿 차단보다 뒤에 있지 않다 — 시크릿
   assert.equal(code, 3);
   assert.match(stdout, /STATUS:BLOCKED/);
 });
+
+// --- --auto: 무인 세션의 "사용자가 이미 승인했다"는 주장을 코드로 확인 ---------------
+// 헤드리스 발행 명령은 jev-gate 허용 목록에 올라 모델 판단을 건너뛴다. 그 대가로 이 명령
+// 자체가 자동 발행 설정(mode)과 점수 기준을 확인하고, 안전 게이트를 끄는 플래그를 거부한다.
+
+// --auto 초안은 초안 폴더(~/.auto-velog/drafts) 안에 있어야 하므로 리다이렉트된 HOME의 그 폴더에 쓴다.
+function scoredDraft(home, name, score, dir = join(home, ".auto-velog", "drafts")) {
+  mkdirSync(dir, { recursive: true });
+  const p = join(dir, `${name}.md`);
+  const scoreLine = score === null ? "" : `score: ${score}\n`;
+  writeFileSync(p, `---\ntitle: ${name}\ntags: test\nstatus: deferred\n${scoreLine}---\n평범한 본문입니다.\n`);
+  return p;
+}
+const AUTO_CFG = { mode: "auto", dailyCap: 5, minScore: 7, defaultTags: [] };
+
+test("--auto 는 mode=auto 이고 점수가 기준 이상이면 게이트를 통과한다 (로그인 단계까지 간다)", () => {
+  const home = tmp();
+  withConfig(home, AUTO_CFG);
+  const { code, stdout } = runPublish(scoredDraft(home, "auto-ok", 8), home, ["--auto"]);
+  assert.equal(code, 2);
+  assert.match(stdout, /STATUS:LOGIN_REQUIRED/);
+});
+
+test("--auto 는 approve 모드에서 exit 4 + STATUS:NOT_ELIGIBLE", () => {
+  const home = tmp();
+  withConfig(home, { ...AUTO_CFG, mode: "approve" });
+  const { code, stdout } = runPublish(scoredDraft(home, "auto-approve-mode", 9), home, ["--auto"]);
+  assert.equal(code, 4);
+  assert.match(stdout, /STATUS:NOT_ELIGIBLE/);
+  assert.match(stdout, /mode/);
+});
+
+test("--auto 는 config가 없으면(기본 approve) 거부한다", () => {
+  const home = tmp();
+  const { code } = runPublish(scoredDraft(home, "auto-no-config", 9), home, ["--auto"]);
+  assert.equal(code, 4);
+});
+
+test("--auto 는 점수가 없거나 숫자가 아니면 거부한다", () => {
+  const home = tmp();
+  withConfig(home, AUTO_CFG);
+  assert.equal(runPublish(scoredDraft(home, "auto-no-score", null), home, ["--auto"]).code, 4);
+  assert.equal(runPublish(scoredDraft(home, "auto-bad-score", "높음"), home, ["--auto"]).code, 4);
+});
+
+test("--auto 점수 경계: minScore 미만은 거부, 같으면 통과", () => {
+  const home = tmp();
+  withConfig(home, AUTO_CFG);
+  assert.equal(runPublish(scoredDraft(home, "auto-six", 6.9), home, ["--auto"]).code, 4);
+  assert.equal(runPublish(scoredDraft(home, "auto-seven", 7), home, ["--auto"]).code, 2);
+});
+
+for (const flag of ["--force", "--ignore-cap", "--private"]) {
+  test(`--auto 는 ${flag} 와 함께 쓰면 거부한다`, () => {
+    const home = tmp();
+    withConfig(home, AUTO_CFG);
+    const { code, stdout } = runPublish(scoredDraft(home, `auto-with${flag}`, 9), home, ["--auto", flag]);
+    assert.equal(code, 4);
+    assert.match(stdout, /STATUS:NOT_ELIGIBLE/);
+  });
+}
+
+test("--auto 없이는 mode·점수를 보지 않는다 (사용자가 직접 요청한 수동 발행)", () => {
+  const home = tmp();
+  withConfig(home, { ...AUTO_CFG, mode: "approve" });
+  const { code } = runPublish(scoredDraft(home, "manual-approve", null), home);
+  assert.equal(code, 2);
+});
+
+test("--auto 는 초안 폴더 밖의 .md 를 거부한다 (세션이 방금 쓴 임의 파일 발행 방지)", () => {
+  const home = tmp();
+  withConfig(home, AUTO_CFG);
+  const outside = scoredDraft(home, "auto-outside", 9, join(home, "elsewhere"));
+  const { code, stdout } = runPublish(outside, home, ["--auto"]);
+  assert.equal(code, 4);
+  assert.match(stdout, /STATUS:NOT_ELIGIBLE/);
+});
+
+test("--auto 는 ../ 로 초안 폴더를 빠져나간 경로도 실제 위치로 판단해 거부한다", () => {
+  const home = tmp();
+  withConfig(home, AUTO_CFG);
+  scoredDraft(home, "auto-climb", 9, join(home, "elsewhere"));
+  mkdirSync(join(home, ".auto-velog", "drafts"), { recursive: true });
+  const climbing = join(home, ".auto-velog", "drafts", "..", "..", "elsewhere", "auto-climb.md");
+  assert.equal(runPublish(climbing, home, ["--auto"]).code, 4);
+});
+
+test("--auto 는 초안 폴더 밖의 커버도 거부한다", () => {
+  const home = tmp();
+  withConfig(home, AUTO_CFG);
+  const p = scoredDraft(home, "auto-cover-outside", 9);
+  const cover = join(home, "leak.png");
+  writeFileSync(cover, "x");
+  assert.equal(runPublish(p, home, [cover, "--auto"]).code, 4);
+});
+
+test("--auto 로도 상한은 그대로다", () => {
+  const home = tmp();
+  withConfig(home, { ...AUTO_CFG, dailyCap: 1 });
+  logPublishedToday(home, 1);
+  const { code, stdout } = runPublish(scoredDraft(home, "auto-over-cap", 9), home, ["--auto"]);
+  assert.equal(code, 5);
+  assert.match(stdout, /STATUS:CAP_REACHED/);
+});

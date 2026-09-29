@@ -76,7 +76,7 @@ CLAUDE_BIN="$(command -v claude)"
 if [ "$MODE" = "publish" ]; then
   # 대상은 이미 정해져 있다. 프롬프트는 그 파일 하나를 지목할 뿐이고, 발행 자격
   # (상태·일일 상한·시크릿)은 publish.mjs가 코드로 다시 강제한다.
-  PROMPT="Run the auto-velog:publish skill now for EXACTLY this one file and nothing else: ${DRAIN_DRAFT}. No new candidate was harvested; this run exists only to drain one backlogged draft. Do not choose a different draft, do not scan the drafts directory for others, do not write a new draft, and do not touch the queue. Generate its cover if the skill's procedure calls for it, then publish that single file; publish.mjs enforces the secret scan, the draft status and the daily cap itself and will refuse the publish if any of them fails — report its STATUS line as the result. Publish at most once in this run."
+  PROMPT="Run the auto-velog:publish skill now for EXACTLY this one file and nothing else: ${DRAIN_DRAFT}. No new candidate was harvested; this run exists only to drain one backlogged draft. Do not choose a different draft, do not scan the drafts directory for others, do not write a new draft, and do not touch the queue. Generate its cover if the skill's procedure calls for it, then publish that single file with the skill's automatic publish command (--auto, nobody is present to approve); publish.mjs enforces the secret scan, the draft status and the daily cap itself and will refuse the publish if any of them fails — report its STATUS line as the result. Publish at most once in this run."
 else
   PROMPT='Run the auto-velog:draft skill now. Process every pending row in ~/.auto-velog/queue: score the candidate against the worthiness rubric, read its session transcript, write a styled draft, run the blocking secret scan, and publish only if config allows (mode=auto, score>=minScore, daily cap). Move processed rows to .processed.jsonl. If the queue is empty, do nothing.'
 fi
@@ -87,6 +87,10 @@ ALLOWED='Read Write Edit Glob Grep WebFetch WebSearch Skill Bash(node:*) Bash(os
 # 배수 세션은 이미 쓰인 초안 하나를 발행할 뿐이라 웹 접근이 필요 없다. 최소 권한을
 # 말로만 두지 않기 위해 이 경로에서는 실제로 좁힌다.
 [ "$MODE" = "publish" ] && ALLOWED='Read Edit Glob Grep Skill Bash(node:*) Bash(osascript:*) Bash(mkdir:*)'
+# 무인 세션이 자기 발행 자격을 스스로 넓히지 못하게, 그 자격을 정하는 파일에는 쓰기를 막는다:
+# jev-gate 허용 목록, Claude Code 설정·플러그인(발행 스크립트 자체 포함), 발행 설정과 발행 로그.
+# Edit(경로) 규칙은 Write 도구에도 적용된다(2026-09-29 헤드리스 실측: "denied by your permission settings").
+DENIED=('Edit(~/.config/jev-gate/**)' 'Edit(~/.claude/**)' 'Edit(~/.auto-velog/config.json)' 'Edit(~/.auto-velog/publish-log.jsonl)')
 
 # stdin은 명시적으로 분리한다: BSD(macOS) nohup은 GNU와 달리 stdin을 건드리지
 # 않고, 훅의 fd 0은 Stop 페이로드 파이프라서 프롬프트 가능 CLI가 잡고 있으면
@@ -97,6 +101,7 @@ MAX_MIN="${AUTO_VELOG_DRAFT_MAX_MIN:-120}"
 (
   AUTO_VELOG_DRAFTING=1 nohup "$CLAUDE_BIN" -p "$PROMPT" \
     --allowedTools "$ALLOWED" \
+    --disallowedTools "${DENIED[@]}" \
     < /dev/null > "$DIR/autodraft.log" 2>&1 &
   CPID=$!
   ELAPSED=0
