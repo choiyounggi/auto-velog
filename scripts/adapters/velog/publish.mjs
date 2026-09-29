@@ -3,7 +3,7 @@
  * 브라우저 컨텍스트 안에서 GraphQL WritePost mutation을 직접 호출한다
  * (httpOnly access_token 쿠키가 credentials:include 로 자동 포함됨).
  *
- * 사용법: node publish.mjs <draft.md> [썸네일.png] [--private] [--force] [--ignore-cap]
+ * 사용법: node publish.mjs <draft.md> [썸네일.png] [--private] [--force] [--ignore-cap] [--auto]
  *   exit 0 = 발행 성공 (stdout STATUS:PUBLISHED + URL:) 또는 이미 발행됨 (STATUS:ALREADY_PUBLISHED)
  *   exit 2 = 로그인 필요 (STATUS:LOGIN_REQUIRED)
  *   exit 3 = 시크릿 탐지로 차단 (STATUS:BLOCKED)
@@ -20,6 +20,11 @@
  *   - 일일 상한: publish.dailyCap을 넘기면 발행하지 않음 (--ignore-cap으로만 무시).
  *     --private(설정 테스트 발행)은 상한에서 제외된다.
  *
+ *   - 자동 발행 자격 (--auto): 무인 세션이 쓰는 모드. publish.mode가 auto이고 frontmatter
+ *     score가 publish.minScore 이상일 때만 발행하며, --force/--ignore-cap/--private와 함께
+ *     쓰면 거부하고, 초안·커버가 초안 폴더 밖이면 거부한다. 이 명령 모양만 jev-gate 허용 목록에 올라 모델 판단을 건너뛰므로,
+ *     "사용자가 이미 승인했다"는 주장을 여기서 코드로 확인한다.
+ *
  * 마지막 두 게이트는 무인 배수 경로 때문에 코드로 내려왔다: 밀린 초안을 발행하는
  * 헤드리스 세션은 그 초안을 쓴 세션이 아니라 컨텍스트가 없고, "deferred 중 가장
  * 오래된 한 건만"이라는 약속이 프롬프트 문장에만 있으면 그건 보장이 아니다.
@@ -27,9 +32,9 @@
  * draft.md 는 YAML frontmatter(title/tags/session/score) 우선, 없으면
  * 첫 H1을 제목으로, `**태그**:` 줄을 태그로 파싱한다.
  */
-import { readFileSync, existsSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { SECRETS_DIR, PUBLISH_LOG, DATA_DIR } from "../../lib/paths.mjs";
+import { readFileSync, existsSync, writeFileSync, appendFileSync, mkdirSync, realpathSync } from "node:fs";
+import { join, dirname, relative, isAbsolute } from "node:path";
+import { SECRETS_DIR, PUBLISH_LOG, DATA_DIR, DRAFTS_DIR } from "../../lib/paths.mjs";
 import { loadConfig } from "../../lib/config.mjs";
 import { parseMarkdown } from "../../lib/markdown.mjs";
 import { isAlreadyPublished, publishedCountToday } from "../../lib/publish-log.mjs";
@@ -47,7 +52,17 @@ async function main() {
   const isPrivate = args.includes("--private");
   const force = args.includes("--force");
   const ignoreCap = args.includes("--ignore-cap");
+  const auto = args.includes("--auto");
   const positional = args.filter((a) => !a.startsWith("--"));
+
+  const notEligible = (msg) => {
+    console.error(msg);
+    console.log("STATUS:NOT_ELIGIBLE");
+    process.exit(4);
+  };
+  if (auto && (force || ignoreCap || isPrivate)) {
+    notEligible("--auto는 --force/--ignore-cap/--private와 함께 쓸 수 없습니다 — 무인 발행은 안전 게이트를 끄지 않습니다.");
+  }
   const mdFilePath = positional[0];
   const thumbnailPath = positional[1] || null;
 
@@ -78,6 +93,29 @@ async function main() {
   }
 
   // --- 코드 레벨 안전 게이트 (스킬 지시와 무관하게 항상 실행) ---------------
+
+  // 0) 자동 발행 자격 (--auto일 때만): 설정과 점수로 사용자의 사전 승인을 확인한다
+  if (auto) {
+    const mode = config.publish?.mode;
+    if (mode !== "auto") notEligible(`publish.mode=${mode} — 자동 발행이 켜져 있지 않습니다 (--auto 거부).`);
+    const raw = (meta.score ?? "").trim();
+    const score = Number(raw);
+    if (raw === "" || !Number.isFinite(score)) notEligible(`frontmatter score가 없거나 숫자가 아닙니다(${JSON.stringify(raw)}) — --auto 거부.`);
+    const minScore = Number(config.publish?.minScore);
+    if (Number.isFinite(minScore) && score < minScore) notEligible(`score ${score} < minScore ${minScore} — --auto 거부.`);
+    // 초안과 커버는 실제 위치(심볼릭 링크·../ 해석 후)가 초안 폴더 안이어야 한다:
+    // 무인 세션이 방금 쓴 임의 파일을 발행하거나 초안 폴더 밖 파일을 커버로 올리지 못하게.
+    for (const f of [mdFilePath, thumbnailPath].filter(Boolean)) {
+      let inside = false;
+      try {
+        const rel = relative(realpathSync(DRAFTS_DIR), realpathSync(f));
+        inside = rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+      } catch {
+        inside = false; // 초안 폴더나 파일이 없으면 자격 없음
+      }
+      if (!inside) notEligible(`${f} 는 초안 폴더(${DRAFTS_DIR}) 밖에 있습니다 — --auto 거부.`);
+    }
+  }
 
   // 1) 중복 발행 가드: frontmatter status 또는 publish-log의 같은 제목
   if (!force && (meta.status === "published" || isAlreadyPublished(title))) {

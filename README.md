@@ -116,10 +116,33 @@ node scripts/cover.mjs <draft.md> [--variant light|terminal|block]
 
 `config.platform`을 해당 디렉토리명으로 바꾸면 스킬이 그 어댑터를 사용합니다.
 
+### jev-gate와 함께 쓸 때
+
+[jev-gate](https://github.com/choiyounggi/jev-gate)의 판단 모델은 원격 상태를 바꾸는 발행 명령을 caution으로 보고 `ask`를 냅니다.
+헤드리스 발행 세션에는 답할 사람이 없어 `ask`가 곧 거부가 됩니다. 그래서 자동 발행은 이렇게 짜여 있습니다.
+
+- publish 스킬의 **자동 발행** 명령은 `publish.mjs <draft.md> [cover.png] --auto  # jev-gate: override` 한 모양뿐입니다.
+- `--auto`는 `publish.mode: auto`와 `score >= minScore`를 코드로 확인하고, `--force`·`--ignore-cap`·`--private`와 함께 쓰면 거부합니다.
+- jev-gate(≥ 0.3.1)는 **사용자가 허용 목록에 올린 모양**의 한 줄 명령일 때만 마커를 따릅니다. 한 번만 설정하면 됩니다:
+
+```
+# auto-velog: 헤드리스 발행 (publish.mjs --auto가 mode·점수·초안 폴더·상한·시크릿을 코드로 확인한다)
+node "?/Users/you/\.claude/plugins/cache/auto-velog/auto-velog/0\.2\.1/scripts/adapters/velog/publish\.mjs"? "?/Users/you/\.auto-velog/drafts/[A-Za-z0-9_][A-Za-z0-9_.-]*\.md"?( "?/Users/you/\.auto-velog/drafts/[A-Za-z0-9_][A-Za-z0-9_.-]*\.png"?)? --auto
+```
+
+위 두 줄에서 `/Users/you`를 자기 홈 디렉토리로 바꿔 `~/.config/jev-gate/override-allow`에 추가하세요.
+버전(`0\.2\.1`)도 설치된 버전으로 적고 **플러그인을 업데이트할 때마다 바꿉니다.** 캐시에 남은 옛 버전의 `publish.mjs`는 `--auto`를 몰라 mode·점수·초안 폴더 검사 없이 발행하므로, 버전을 와일드카드로 두지 않습니다.
+패턴은 설치 경로와 초안 폴더를 문자 그대로 고정합니다. 경로 자리를 `[^ ]*`처럼 느슨하게 쓰면 `node --eval=…` 같은 옵션이 끼어들 수 있습니다. 허용 목록이 없으면 마커는 무시되고, 헤드리스 발행은 판단 모델의 확신에 따라 거부될 수 있습니다.
+사용자가 대화에서 직접 요청한 수동 발행은 `--auto`도 마커도 쓰지 않습니다. jev-gate가 없으면 마커는 그냥 셸 주석입니다.
+
+무인 세션은 자기 발행 자격을 넓히지 못하도록 `~/.config/jev-gate/`, `~/.claude/`, `~/.auto-velog/config.json`, `publish-log.jsonl`에 쓸 수 없습니다(Stop 훅의 `--disallowedTools`).
+남는 위험: 초안 frontmatter의 `score`는 세션이 스스로 매기므로 점수 기준은 실수 방지용이지 보안 경계가 아닙니다. 쓰기 금지 규칙은 Write·Edit 도구에만 걸리므로,
+`Bash(node:*)`의 `node -e`나 `Bash(osascript:*)`의 `do shell script`로 같은 파일을 고치는 길은 jev-gate 판단 모델(확률적)만 막습니다.
+
 ## 개발
 
 ```bash
-npm test   # node:test — harvest 파서, 시크릿 스캐너, config, 마크다운 파서, 배수 판정
+npm test   # node:test — harvest 파서, 시크릿 스캐너, config, 마크다운 파서, 배수 판정, 발행 명령의 jev-gate 마커
            # cover 테스트는 playwright가 필요하다: 먼저 npm install
 ```
 
