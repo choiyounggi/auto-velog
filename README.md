@@ -116,10 +116,16 @@ node scripts/cover.mjs <draft.md> [--variant light|terminal|block]
 
 `config.platform`을 해당 디렉토리명으로 바꾸면 스킬이 그 어댑터를 사용합니다.
 
+### jev-gate와 함께 쓸 때
+
+[jev-gate](https://github.com/choiyounggi/jev-gate)의 판단 모델은 원격 상태를 바꾸는 발행 명령을 caution으로 보고 `ask`를 냅니다.
+헤드리스 발행 세션에는 답할 사람이 없어 `ask`가 곧 거부가 되므로, publish 스킬은 발행 명령 끝에 `# jev-gate: override`를 붙입니다
+(jev-gate ≥ 0.3.0이 이 마커를 보면 모델 판단을 건너뜁니다). 발행 자격은 여전히 `publish.mjs`가 코드로 강제하고, jev-gate가 없으면 그냥 셸 주석입니다.
+
 ## 개발
 
 ```bash
-npm test   # node:test — harvest 파서, 시크릿 스캐너, config, 마크다운 파서, 배수 판정
+npm test   # node:test — harvest 파서, 시크릿 스캐너, config, 마크다운 파서, 배수 판정, 발행 명령의 jev-gate 마커
            # cover 테스트는 playwright가 필요하다: 먼저 npm install
 ```
 

@@ -38,8 +38,17 @@ node "$PLUGIN/scripts/adapters/velog/check-login.mjs"
 
 ```bash
 node "$PLUGIN/scripts/cover.mjs" <draft.md>   # stdout 2번째 줄 = 생성된 PNG 경로
-node "$PLUGIN/scripts/adapters/velog/publish.mjs" <draft.md> <cover.png>
+node "$PLUGIN/scripts/adapters/velog/publish.mjs" <draft.md> <cover.png>  # jev-gate: override
 ```
+
+**발행 명령 끝의 `# jev-gate: override`는 지우지 말고 그대로 실행한다.** 이 발행은 사용자가
+이미 승인한 것이다(`publish.mode: auto` 설정, 또는 대화에서 "발행해줘"). jev-gate 플러그인의
+판단 모델은 원격 상태를 바꾸는 모든 발행을 caution으로 보고 `ask`를 내는데, 헤드리스 세션에는
+그 질문에 답할 사람이 없어 `ask`가 곧 거부가 된다. 마커는 "사용자가 승인한 명령"이라는 표시라
+jev-gate가 모델 판단을 건너뛴다(jev-gate ≥ 0.3.0). jev-gate가 없으면 그냥 셸 주석이다.
+발행 자격(상태·일일 상한·시크릿·중복)은 여전히 `publish.mjs`가 코드로 강제한다.
+마커는 이 발행 명령 한 줄에만 붙인다. 다른 명령에 붙이거나, 마커 없이 막힌 명령을 문구만 바꿔
+재시도하지 않는다.
 
 커버는 AI 생성 이미지가 아니라 제목·태그 기반 타이포그래피 카드다. 본문에 코드
 블록이 있으면 terminal(코드 카드), 없으면 light 변형이 자동 선택되고, 색상은 태그
