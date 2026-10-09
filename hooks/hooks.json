@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/blog-instruction.sh"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/blog-instruction.sh\""
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/harvest-blog.sh"
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/harvest-blog.sh\""
           }
         ]
       }
