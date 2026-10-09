@@ -33,7 +33,7 @@ const skillLines = (skill) => shellLines(readFileSync(new URL(`${skill}/SKILL.md
 
 // 스킬의 자리표시를 실제로 실행될 모양으로 채운다. README 예시의 홈(/Users/you)과 맞춘다.
 const fill = (line) =>
-  line.replaceAll("<HOME>", "/Users/you").replaceAll("<버전>", "0.2.1").replaceAll("<초안>", "2026-09-29-post");
+  line.replaceAll("<HOME>", "/Users/you").replaceAll("<버전>", "0.2.2").replaceAll("<초안>", "2026-09-29-post");
 
 // README의 jev-gate 허용 목록 예시 블록에서 패턴(주석 아닌 줄)을 꺼낸다.
 function readmeAllowPattern() {

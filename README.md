@@ -127,11 +127,11 @@ node scripts/cover.mjs <draft.md> [--variant light|terminal|block]
 
 ```
 # auto-velog: 헤드리스 발행 (publish.mjs --auto가 mode·점수·초안 폴더·상한·시크릿을 코드로 확인한다)
-node "?/Users/you/\.claude/plugins/cache/auto-velog/auto-velog/0\.2\.1/scripts/adapters/velog/publish\.mjs"? "?/Users/you/\.auto-velog/drafts/[A-Za-z0-9_][A-Za-z0-9_.-]*\.md"?( "?/Users/you/\.auto-velog/drafts/[A-Za-z0-9_][A-Za-z0-9_.-]*\.png"?)? --auto
+node "?/Users/you/\.claude/plugins/cache/auto-velog/auto-velog/0\.2\.2/scripts/adapters/velog/publish\.mjs"? "?/Users/you/\.auto-velog/drafts/[A-Za-z0-9_][A-Za-z0-9_.-]*\.md"?( "?/Users/you/\.auto-velog/drafts/[A-Za-z0-9_][A-Za-z0-9_.-]*\.png"?)? --auto
 ```
 
 위 두 줄에서 `/Users/you`를 자기 홈 디렉토리로 바꿔 `~/.config/jev-gate/override-allow`에 추가하세요.
-버전(`0\.2\.1`)도 설치된 버전으로 적고 **플러그인을 업데이트할 때마다 바꿉니다.** 캐시에 남은 옛 버전의 `publish.mjs`는 `--auto`를 몰라 mode·점수·초안 폴더 검사 없이 발행하므로, 버전을 와일드카드로 두지 않습니다.
+버전(`0\.2\.2`)도 설치된 버전으로 적고 **플러그인을 업데이트할 때마다 바꿉니다.** 캐시에 남은 옛 버전의 `publish.mjs`는 `--auto`를 몰라 mode·점수·초안 폴더 검사 없이 발행하므로, 버전을 와일드카드로 두지 않습니다.
 패턴은 설치 경로와 초안 폴더를 문자 그대로 고정합니다. 경로 자리를 `[^ ]*`처럼 느슨하게 쓰면 `node --eval=…` 같은 옵션이 끼어들 수 있습니다. 허용 목록이 없으면 마커는 무시되고, 헤드리스 발행은 판단 모델의 확신에 따라 거부될 수 있습니다.
 사용자가 대화에서 직접 요청한 수동 발행은 `--auto`도 마커도 쓰지 않습니다. jev-gate가 없으면 마커는 그냥 셸 주석입니다.
 
